@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аниме викторина | Исправленная версия</title>
+    <!-- Разрешаем unsafe-eval и unsafe-inline для обхода CSP GitHub Pages -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseio.com https://*.googleapis.com;">
+    <title>Аниме викторина | 8 раундов</title>
     <style>
-        /* Стили такие же, как в вашем коде, оставляю без изменений */
         * { box-sizing: border-box; }
         body {
             background: linear-gradient(135deg, #1a1a2e, #16213e);
@@ -1016,7 +1017,6 @@
                 showWaitingScreen();
             } catch(e) {
                 showError("Ошибка восстановления сессии: "+e.message);
-                // Если не удалось восстановить, удаляем сохранённые данные и перезагружаем
                 localStorage.removeItem('quizUser');
                 location.reload();
             }
