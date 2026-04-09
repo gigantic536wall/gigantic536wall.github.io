@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseio.com https://*.googleapis.com;">
     <title>Аниме викторина | Командная игра</title>
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (старая совместимая версия) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <style>
@@ -58,9 +59,6 @@
         }
         .team h3 {
             margin: 0 0 10px 0;
-        }
-        .players-list {
-            min-height: 100px;
         }
         .waiting {
             font-size: 24px;
@@ -138,7 +136,7 @@
 <script>
     console.log("Скрипт загружен");
 
-    // ========== КОНФИГ FIREBASE (исправленный) ==========
+    // ========== КОНФИГ FIREBASE ==========
     const firebaseConfig = {
         apiKey: "AIzaSyCGkWhrIEg-WPusS2QqTILVWCht-WXS4ug",
         authDomain: "anime-database-7d48e.firebaseapp.com",
@@ -151,91 +149,76 @@
     console.log("Конфиг:", firebaseConfig);
 
     // Инициализация Firebase
+    let db;
     try {
         firebase.initializeApp(firebaseConfig);
-        console.log("Firebase инициализирован успешно");
+        db = firebase.database();
+        console.log("Firebase инициализирован");
+        // Проверка соединения
+        db.ref('.info/connected').on('value', (snap) => {
+            console.log("Соединение с Firebase:", snap.val() ? "есть" : "нет");
+        });
     } catch (e) {
-        console.error("Ошибка инициализации Firebase:", e);
-        document.getElementById('errorDisplay').innerText = "Ошибка подключения к Firebase: " + e.message;
+        console.error("Ошибка Firebase:", e);
+        document.getElementById('errorDisplay').innerText = "Ошибка Firebase: " + e.message;
         document.getElementById('errorDisplay').style.display = 'block';
     }
 
-    const db = firebase.database();
-    console.log("База данных получена");
-
-    // Проверка соединения с базой
-    db.ref('.info/connected').on('value', (snap) => {
-        if (snap.val() === true) {
-            console.log("✅ Соединение с Firebase установлено");
-        } else {
-            console.log("❌ Нет соединения с Firebase");
-        }
-    });
-
-    // Глобальные переменные
+    // Переменные игры
     let currentUser = null;
     let gameActive = false;
     let currentQuestionIndex = 0;
     let userScore = 0;
-    let questions = [
+    const questions = [
         { text: "Кто главный герой «Наруто»?", options: ["Саске", "Наруто", "Какаши", "Сакура"], correct: 1 },
         { text: "Техника Гоку из «Драгон Болл»?", options: ["Расенган", "Камехамеха", "Гетсуга", "Реактор"], correct: 1 },
         { text: "Где появляется Леви Аккерман?", options: ["Ванпанчмен", "Токийский гуль", "Атака титанов", "Моя геройская академия"], correct: 2 },
         { text: "Автор «Ван Пис»?", options: ["Ода", "Кисимото", "Тогаси", "Кубо"], correct: 0 }
     ];
 
-    // Функции
     function showError(msg) {
         const errDiv = document.getElementById('errorDisplay');
         errDiv.innerText = msg;
         errDiv.style.display = 'block';
-        setTimeout(() => { errDiv.style.display = 'none'; }, 5000);
+        setTimeout(() => errDiv.style.display = 'none', 5000);
     }
 
+    // --- Игровые функции ---
     function listenGameState() {
-        db.ref('gameState').on('value', (snapshot) => {
-            const state = snapshot.val();
-            console.log("gameState изменился:", state);
+        if (!db) return;
+        db.ref('gameState').on('value', (snap) => {
+            const state = snap.val();
             if (state) {
-                gameActive = state.active || false;
-                currentQuestionIndex = state.currentQuestion || 0;
-                if (gameActive && currentQuestionIndex < questions.length) {
-                    showQuizScreen();
-                } else if (gameActive && currentQuestionIndex >= questions.length) {
-                    showFinalResults();
-                } else if (!gameActive && currentUser && !currentUser.isAdmin) {
-                    showWaitingScreen();
-                }
+                gameActive = state.active;
+                currentQuestionIndex = state.currentQuestion;
+                if (gameActive && currentQuestionIndex < questions.length) showQuizScreen();
+                else if (gameActive && currentQuestionIndex >= questions.length) showFinalResults();
+                else if (!gameActive && currentUser && !currentUser.isAdmin) showWaitingScreen();
             } else {
                 db.ref('gameState').set({ active: false, currentQuestion: 0 });
             }
-        }, (error) => {
-            console.error("Ошибка слушания gameState:", error);
-            showError("Ошибка подключения к базе данных. Проверьте правила безопасности.");
         });
     }
 
     function listenQuestions() {
-        db.ref('currentQuestion').on('value', (snapshot) => {
-            const idx = snapshot.val();
-            if (idx !== null && gameActive) {
+        if (!db) return;
+        db.ref('currentQuestion').on('value', (snap) => {
+            const idx = snap.val();
+            if (idx !== null && gameActive && idx < questions.length) {
                 currentQuestionIndex = idx;
-                if (idx < questions.length) {
-                    displayQuestion(questions[idx]);
-                } else {
-                    showFinalResults();
-                }
+                displayQuestion(questions[idx]);
+            } else if (idx !== null && gameActive && idx >= questions.length) {
+                showFinalResults();
             }
         });
     }
 
     function listenPlayers() {
-        db.ref('players').on('value', (snapshot) => {
-            const players = snapshot.val() || {};
+        if (!db) return;
+        db.ref('players').on('value', (snap) => {
+            const players = snap.val() || {};
             updateTeamsDisplay(players);
-            if (currentUser && currentUser.isAdmin) {
-                updateAdminTeamsDisplay(players);
-            }
+            if (currentUser && currentUser.isAdmin) updateAdminTeamsDisplay(players);
         });
     }
 
@@ -264,20 +247,19 @@
     }
 
     function joinGame(nickname, team) {
+        if (!db) { showError("База данных не инициализирована"); return; }
         const userId = nickname + "_" + Date.now();
         currentUser = { nickname, team: parseInt(team), isAdmin: false, id: userId };
-        console.log("Присоединение игрока:", currentUser);
         db.ref('players/' + userId).set({
             nickname: nickname,
             team: parseInt(team),
             score: 0
         }).then(() => {
-            console.log("Игрок добавлен в БД");
             localStorage.setItem('quizUser', JSON.stringify({ nickname, team: parseInt(team), id: userId, isAdmin: false }));
             showGameScreen();
-        }).catch((err) => {
-            console.error("Ошибка записи игрока:", err);
-            showError("Не удалось присоединиться: " + err.message);
+        }).catch(err => {
+            console.error(err);
+            showError("Ошибка: " + err.message);
         });
     }
 
@@ -288,23 +270,24 @@
             localStorage.setItem('quizUser', JSON.stringify({ nickname: "Админ", team: -1, id: adminId, isAdmin: true }));
             showGameScreen();
             document.getElementById('adminPanel').classList.remove('hidden');
-            console.log("Админ вошёл");
-            // Подписываем админа на изменения состояния игры
-            db.ref('gameState').on('value', (snapshot) => {
-                const state = snapshot.val();
-                if (state && state.active) {
-                    gameActive = true;
-                    currentQuestionIndex = state.currentQuestion;
-                    if (currentQuestionIndex < questions.length) showQuizScreen();
-                    else showFinalResults();
-                } else {
-                    gameActive = false;
-                    showWaitingScreen();
-                }
-            });
-            listenPlayers(); // чтобы видеть игроков
+            // Подписка для админа
+            if (db) {
+                db.ref('gameState').on('value', (snap) => {
+                    const state = snap.val();
+                    if (state && state.active) {
+                        gameActive = true;
+                        currentQuestionIndex = state.currentQuestion;
+                        if (currentQuestionIndex < questions.length) showQuizScreen();
+                        else showFinalResults();
+                    } else {
+                        gameActive = false;
+                        showWaitingScreen();
+                    }
+                });
+                listenPlayers();
+            }
         } else {
-            alert("Неверный пароль администратора");
+            alert("Неверный пароль");
         }
     }
 
@@ -312,7 +295,7 @@
         document.getElementById('loginScreen').classList.add('hidden');
         document.getElementById('gameScreen').classList.remove('hidden');
         document.getElementById('playerInfo').innerText = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
-        if (!currentUser.isAdmin) {
+        if (!currentUser.isAdmin && db) {
             listenGameState();
             listenPlayers();
             listenQuestions();
@@ -329,12 +312,13 @@
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.remove('hidden');
         document.getElementById('resultScreen').classList.add('hidden');
-        db.ref('currentQuestion').once('value', (snap) => {
-            let idx = snap.val();
-            if (idx === null) idx = 0;
-            currentQuestionIndex = idx;
-            if (idx < questions.length) displayQuestion(questions[idx]);
-        });
+        if (db) {
+            db.ref('currentQuestion').once('value', (snap) => {
+                let idx = snap.val();
+                if (idx === null) idx = 0;
+                if (idx < questions.length) displayQuestion(questions[idx]);
+            });
+        }
     }
 
     function displayQuestion(q) {
@@ -358,7 +342,7 @@
     }
 
     function answerQuestion(selected) {
-        if (!gameActive) return;
+        if (!gameActive || !db) return;
         db.ref('currentQuestion').once('value', (snap) => {
             const qIndex = snap.val();
             if (qIndex >= questions.length) return;
@@ -393,44 +377,47 @@
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.remove('hidden');
-        db.ref('players').once('value', (snap) => {
-            const players = snap.val() || {};
-            let teamsScores = [0,0,0,0];
-            for (let id in players) {
-                let p = players[id];
-                if (p && p.team >= 0 && p.team < 4) {
-                    teamsScores[p.team] += (p.score || 0);
+        if (db) {
+            db.ref('players').once('value', (snap) => {
+                const players = snap.val() || {};
+                let teamsScores = [0,0,0,0];
+                for (let id in players) {
+                    let p = players[id];
+                    if (p && p.team >= 0 && p.team < 4) {
+                        teamsScores[p.team] += (p.score || 0);
+                    }
                 }
-            }
-            let html = '<h3>Результаты команд:</h3>';
-            for (let i=0; i<4; i++) {
-                html += `<div class="team">Команда ${i+1}: ${teamsScores[i]} очков</div>`;
-            }
-            document.getElementById('finalResults').innerHTML = html;
-        });
+                let html = '<h3>Результаты команд:</h3>';
+                for (let i=0; i<4; i++) {
+                    html += `<div class="team">Команда ${i+1}: ${teamsScores[i]} очков</div>`;
+                }
+                document.getElementById('finalResults').innerHTML = html;
+            });
+        }
     }
 
     // Кнопки админа
     document.getElementById('startGameBtn')?.addEventListener('click', () => {
-        if (currentUser && currentUser.isAdmin) {
+        if (currentUser && currentUser.isAdmin && db) {
             db.ref('gameState').set({ active: true, currentQuestion: 0 });
             db.ref('currentQuestion').set(0);
             db.ref('players').once('value', (snap) => {
                 const players = snap.val();
                 for (let id in players) {
-                    if (id.startsWith('admin_')) continue;
-                    db.ref('players/' + id + '/score').set(0);
+                    if (id && !id.startsWith('admin_')) {
+                        db.ref('players/' + id + '/score').set(0);
+                    }
                 }
             });
             alert("Игра начата!");
         } else {
-            alert("Вы не админ");
+            alert("Вы не админ или база не готова");
         }
     });
 
     document.getElementById('resetGameBtn')?.addEventListener('click', () => {
-        if (currentUser && currentUser.isAdmin) {
-            if (confirm("Сбросить игру? Все данные будут удалены.")) {
+        if (currentUser && currentUser.isAdmin && db) {
+            if (confirm("Сбросить игру? Все данные удалятся.")) {
                 db.ref('gameState').set({ active: false, currentQuestion: 0 });
                 db.ref('players').set(null);
                 localStorage.removeItem('quizUser');
@@ -439,14 +426,11 @@
         }
     });
 
-    // Логин
+    // Обработчики входа
     document.getElementById('joinBtn')?.addEventListener('click', () => {
         const nick = document.getElementById('nickname').value.trim();
         const team = document.getElementById('teamSelect').value;
-        if (nick === "") {
-            alert("Введи никнейм");
-            return;
-        }
+        if (!nick) { alert("Введи никнейм"); return; }
         joinGame(nick, team);
     });
 
@@ -460,41 +444,40 @@
     if (saved) {
         try {
             const u = JSON.parse(saved);
-            console.log("Восстанавливаем пользователя:", u);
             if (u.isAdmin) {
                 currentUser = u;
                 showGameScreen();
                 document.getElementById('adminPanel').classList.remove('hidden');
-                listenPlayers();
-                db.ref('gameState').on('value', (snapshot) => {
-                    const state = snapshot.val();
-                    if (state && state.active) {
-                        gameActive = true;
-                        currentQuestionIndex = state.currentQuestion;
-                        if (currentQuestionIndex < questions.length) showQuizScreen();
-                        else showFinalResults();
-                    } else {
-                        gameActive = false;
-                        showWaitingScreen();
-                    }
-                });
+                if (db) {
+                    listenPlayers();
+                    db.ref('gameState').on('value', (snap) => {
+                        const state = snap.val();
+                        if (state && state.active) {
+                            gameActive = true;
+                            currentQuestionIndex = state.currentQuestion;
+                            if (currentQuestionIndex < questions.length) showQuizScreen();
+                            else showFinalResults();
+                        } else {
+                            gameActive = false;
+                            showWaitingScreen();
+                        }
+                    });
+                }
             } else {
                 currentUser = u;
-                // Проверяем, существует ли ещё игрок в БД
-                db.ref('players/' + u.id).once('value', (snap) => {
-                    if (!snap.exists()) {
-                        // Восстанавливаем запись
-                        db.ref('players/' + u.id).set({ nickname: u.nickname, team: u.team, score: 0 });
-                    }
-                });
-                showGameScreen();
-                listenGameState();
-                listenPlayers();
-                listenQuestions();
+                if (db) {
+                    db.ref('players/' + u.id).once('value', (snap) => {
+                        if (!snap.exists()) {
+                            db.ref('players/' + u.id).set({ nickname: u.nickname, team: u.team, score: 0 });
+                        }
+                    });
+                    showGameScreen();
+                    listenGameState();
+                    listenPlayers();
+                    listenQuestions();
+                }
             }
-        } catch(e) {
-            console.error("Ошибка восстановления сессии", e);
-        }
+        } catch(e) { console.error(e); }
     }
 </script>
 </body>
