@@ -188,7 +188,7 @@
     }
 
     // ==================== ДАННЫЕ ИГРЫ ====================
-const roundsData = [
+    const roundsData = [
         { type: "image_sequence", name: "Раунд 1: Угадай аниме по картинке", questions: [
             { images: ["images/image1.png", "images/image2.png", "images/image3.png", "images/image4.png"], correctAnswer: "Реинкарнация безработного" },
             { images: ["images/image1маг.png", "images/image2маг.png", "images/image3маг.png", "images/image4маг.png"], correctAnswer: "Магическая битва " },
@@ -210,6 +210,7 @@ const roundsData = [
         { type: "quiz", name: "Раунд 8: Финал", questions: generateQuizQuestions(8) }
     ];
 
+    
     function generateQuizQuestions(roundNum) {
         let qs = [];
         for(let i=1; i<=10; i++) {
@@ -228,7 +229,7 @@ const roundsData = [
     let currentUser = null;
     let timerInterval = null, currentQuizTimer = null, pauseInterval = null;
     let imageStep = 0, answered = false, answerGivenAtStep = -1, userAnswerText = "", currentQuestionObj = null;
-    let currentAnswerText = ""; // сохранённый текст ответа для текущего вопроса (первый раунд)
+    let currentAnswerText = "";
     let pollingInterval = null;
     let isWaitingForNextQuestion = false;
 
@@ -329,6 +330,23 @@ const roundsData = [
         }
     }
 
+    // Сохранение текущего состояния таймера и шага в Firebase
+    async function syncImageState() {
+        if (!gameActive || !roundInProgress || roundsData[currentRound].type !== "image_sequence") return;
+        const timerDiv = document.getElementById('timer');
+        let timeLeft = timerDiv ? parseInt(timerDiv.innerText) : (imageStep === 3 ? 12 : 8);
+        const state = {
+            active: true,
+            currentRound: currentRound,
+            currentQuestion: currentQuestionIdx,
+            imageStep: imageStep,
+            imageTimeLeft: timeLeft,
+            answered: answered,
+            answerText: currentAnswerText
+        };
+        await restPut('gameState', state);
+    }
+
     // Отображение текущего вопроса
     function showCurrentQuestion() {
         const round = roundsData[currentRound];
@@ -337,9 +355,9 @@ const roundsData = [
         if(!container) return;
         if(round.type === "image_sequence") {
             imageStep = 0; answered = false; answerGivenAtStep = -1; userAnswerText = "";
-            currentAnswerText = ""; // очищаем сохранённый текст для нового вопроса
+            currentAnswerText = "";
             currentQuestionObj = question;
-            startImageQuestion(question);
+            restoreImageState(question);
         } else {
             container.innerHTML = `
                 <div class="question-block">
@@ -378,17 +396,43 @@ const roundsData = [
         }
     }
 
-    function startImageQuestion(question) {
-        if(imageStep >= 4) {
+    async function restoreImageState(question) {
+        const state = await restGet('gameState');
+        if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
+            if (state.imageStep !== undefined) imageStep = state.imageStep;
+            if (state.answered !== undefined) answered = state.answered;
+            if (state.answerText !== undefined) currentAnswerText = state.answerText;
+            if (answered) {
+                let restoredTime = state.imageTimeLeft;
+                if (restoredTime === undefined) restoredTime = (imageStep === 3) ? 12 : 8;
+                startImageQuestion(question, true, restoredTime);
+                return;
+            }
+            let savedTime = state.imageTimeLeft;
+            if (savedTime !== undefined && savedTime > 0) {
+                startImageQuestion(question, false, savedTime);
+                return;
+            }
+        }
+        const defaultTime = (imageStep === 3) ? 12 : 8;
+        startImageQuestion(question, false, defaultTime);
+    }
+
+    function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
+        if (imageStep >= 4) {
             startPauseBetweenQuestions();
             return;
         }
+        let timeLeft;
+        if (startTime !== null) {
+            timeLeft = startTime;
+        } else {
+            timeLeft = (imageStep === 3) ? 12 : 8;
+        }
         const container = document.getElementById('roundContent');
         const imgUrl = question.images[imageStep];
-        let timeLeft = 8;
         const inputDisabled = answered ? 'disabled' : '';
-        // Экранируем кавычки в currentAnswerText, чтобы не сломать HTML
-        const safeAnswerText = currentAnswerText.replace(/"/g, '&quot;');
+        const safeAnswerText = (currentAnswerText || '').replace(/"/g, '&quot;');
         container.innerHTML = `
             <div class="image-round-container">
                 <h2>${roundsData[currentRound].name} | Вопрос ${currentQuestionIdx+1} из ${roundsData[currentRound].questions.length}</h2>
@@ -405,11 +449,10 @@ const roundsData = [
         const submitBtn = document.getElementById('submitAnswerBtn');
         
         if(!answered) {
-            // Слушаем ввод, сохраняем в currentAnswerText
             answerInput.addEventListener('input', (e) => {
                 currentAnswerText = e.target.value;
+                syncImageState();
             });
-            // Если был уже какой-то текст (восстановленный), убедимся, что поле его отображает
             if(currentAnswerText) answerInput.value = currentAnswerText;
             
             submitBtn.onclick = async () => {
@@ -425,20 +468,26 @@ const roundsData = [
                 }
                 answerInput.disabled = true;
                 submitBtn.disabled = true;
+                await syncImageState();
             };
         }
         
         if(timerInterval) clearInterval(timerInterval);
-        timerInterval = setInterval(() => {
+        timerInterval = setInterval(async () => {
             if(!gameActive || !roundInProgress) { clearInterval(timerInterval); return; }
             timeLeft--;
             const timerDiv = document.getElementById('timer');
             if(timerDiv) timerDiv.innerText = timeLeft;
+            await syncImageState();
             if(timeLeft <= 0) {
                 clearInterval(timerInterval);
+                if(!answered) {
+                    // ничего не начисляем
+                }
                 imageStep++;
                 if(imageStep < 4) {
-                    startImageQuestion(question);
+                    const nextTime = (imageStep === 3) ? 12 : 8;
+                    startImageQuestion(question, false, nextTime);
                 } else {
                     startPauseBetweenQuestions();
                 }
@@ -550,7 +599,7 @@ const roundsData = [
         currentQuestionIdx = 0;
         gameActive = true;
         roundInProgress = true;
-        await restPut('gameState', { active: true, currentRound: roundIndex, currentQuestion: 0, roundFinished: false });
+        await restPut('gameState', { active: true, currentRound: roundIndex, currentQuestion: 0, roundFinished: false, imageStep: 0, imageTimeLeft: 8, answered: false });
         document.getElementById('showAnswersBtn')?.classList.add('hidden');
         const players = await restGet('players') || {};
         for(let id in players) {
