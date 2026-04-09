@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseio.com https://*.googleapis.com;">
-    <title>Аниме викторина | 8 раундов</title>
+    <title>Аниме викторина | 8 раундов × 10 вопросов</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <style>
@@ -96,13 +96,13 @@
         .admin-answers-table th, .admin-answers-table td { border: 1px solid #fff; padding: 8px; text-align: left; }
         .quiz-option-btn { display: block; width: 80%; margin: 10px auto; background: #ff4757; border: none; border-radius: 40px; color: white; font-size: 18px; padding: 12px; }
         .quiz-option-btn:hover { background: #ff6b81; }
+        .progress-info { font-size: 18px; margin-top: 10px; color: #ccc; }
     </style>
 </head>
 <body>
 <div class="container" id="app">
-    <h1>🎌 Аниме викторина | 8 раундов</h1>
+    <h1>🎌 Аниме викторина | 8 раундов × 10 вопросов</h1>
     
-    <!-- Экран входа -->
     <div id="loginScreen">
         <h2>Вход в игру</h2>
         <input type="text" id="nickname" class="nickname-input" placeholder="Твой никнейм" maxlength="20">
@@ -119,7 +119,6 @@
         <div id="errorDisplay" class="error-message" style="display:none;"></div>
     </div>
 
-    <!-- Экран игры -->
     <div id="gameScreen" class="hidden">
         <div id="playerInfo"></div>
         <div id="waitingScreen">
@@ -146,7 +145,6 @@
         </div>
     </div>
 
-    <!-- Панель администратора -->
     <div id="adminPanel" class="hidden admin-panel">
         <h2>🔧 Панель администратора</h2>
         <div id="adminTeamsStatus"></div>
@@ -177,38 +175,75 @@
         console.log("Firebase инициализирован");
     } catch(e) { console.error(e); }
 
-    // ---------- ДАННЫЕ РАУНДОВ (8 штук) ----------
-    const rounds = [
-        { // Раунд 1: угадай по картинке
-            type: "image",
+    // ---------- ДАННЫЕ РАУНДОВ (8 раундов, в каждом 10 вопросов) ----------
+    // Для первого раунда тип "image_sequence" - каждый вопрос состоит из 4 последовательных картинок.
+    // Вам нужно заполнить свои URL картинок в questions[0] (10 вопросов, у каждого images: массив из 4 URL).
+    // Для раундов 2-8 тип "quiz" - обычные вопросы с вариантами ответов.
+    
+    const roundsData = [
+        {   // Раунд 1: 10 вопросов типа "угадай по картинкам"
+            type: "image_sequence",
             name: "Раунд 1: Угадай аниме по картинке",
-            images: [
-                { url: "https://via.placeholder.com/400x300?text=Аниме+1", points: 4 },   // ЗАМЕНИТЕ НА СВОИ URL
-                { url: "https://via.placeholder.com/400x300?text=Аниме+2", points: 3 },
-                { url: "https://via.placeholder.com/400x300?text=Аниме+3", points: 2 },
-                { url: "https://via.placeholder.com/400x300?text=Аниме+4", points: 1 }
+            questions: [
+                {   // Вопрос 1
+                    images: [
+                        "https://via.placeholder.com/400x300?text=Аниме1_картинка1",
+                        "https://via.placeholder.com/400x300?text=Аниме1_картинка2",
+                        "https://via.placeholder.com/400x300?text=Аниме1_картинка3",
+                        "https://via.placeholder.com/400x300?text=Аниме1_картинка4"
+                    ],
+                    correctAnswer: "Наруто"   // правильный ответ (текст)
+                },
+                // Добавьте ещё 9 вопросов аналогично
+                { images: ["url1","url2","url3","url4"], correctAnswer: "Ван Пис" },
+                { images: ["url1","url2","url3","url4"], correctAnswer: "Атака титанов" },
+                { images: ["url1","url2","url3","url4"], correctAnswer: "Драгон Болл" },
+                { images: ["url1","url2","url3","url4"], correctAnswer: "Токийский гуль" },
+                { images: ["url1","url2","url3","url4"], correctAnswer: "Клинок рассекающий демонов" },
+                { images: ["url1","url2","url3","url4"], correctAnswer: "Моя геройская академия" },
+                { images: ["url1","url2","url3","url4"], correctAnswer: "Реинкарнация безработного" },
+                { images: ["url1","url2","url3","url4"], correctAnswer: "Код Гиас" },
+                { images: ["url1","url2","url3","url4"], correctAnswer: "Магическая битва" }
             ]
         },
-        { type: "quiz", name: "Раунд 2", question: "Кто главный герой «Наруто»?", options: ["Саске", "Наруто", "Какаши", "Сакура"], correct: 1, points: 2 },
-        { type: "quiz", name: "Раунд 3", question: "Техника Гоку из «Драгон Болл»?", options: ["Расенган", "Камехамеха", "Гетсуга", "Реактор"], correct: 1, points: 2 },
-        { type: "quiz", name: "Раунд 4", question: "Где появляется Леви Аккерман?", options: ["Ванпанчмен", "Токийский гуль", "Атака титанов", "Моя геройская академия"], correct: 2, points: 2 },
-        { type: "quiz", name: "Раунд 5", question: "Автор «Ван Пис»?", options: ["Ода", "Кисимото", "Тогаси", "Кубо"], correct: 0, points: 2 },
-        { type: "quiz", name: "Раунд 6", question: "Название меча у Танджиро из «Клинка, рассекающего демонов»?", options: ["Ничирин", "Солнечный", "Танджиро", "Хашира"], correct: 0, points: 2 },
-        { type: "quiz", name: "Раунд 7", question: "Как звали друга Наруто, который стал Хокаге?", options: ["Шикамару", "Киба", "Наруто", "Конокамару"], correct: 2, points: 2 },
-        { type: "quiz", name: "Раунд 8", question: "Кто создал «Атаку титанов»?", options: ["Ода", "Исаяма", "Араки", "Танака"], correct: 1, points: 2 }
+        // Раунды 2-8: обычные вопросы (пример, вы можете заменить на свои 10 вопросов в каждом)
+        { type: "quiz", name: "Раунд 2: Общие знания", questions: generateQuizQuestions(2) },
+        { type: "quiz", name: "Раунд 3: Персонажи", questions: generateQuizQuestions(3) },
+        { type: "quiz", name: "Раунд 4: Сюжеты", questions: generateQuizQuestions(4) },
+        { type: "quiz", name: "Раунд 5: Манга", questions: generateQuizQuestions(5) },
+        { type: "quiz", name: "Раунд 6: Студии", questions: generateQuizQuestions(6) },
+        { type: "quiz", name: "Раунд 7: Озвучка", questions: generateQuizQuestions(7) },
+        { type: "quiz", name: "Раунд 8: Финал", questions: generateQuizQuestions(8) }
     ];
 
-    let currentRound = 0;           // 0-индекс
-    let gameActive = false;          // активна ли игра (раунд в процессе)
-    let roundInProgress = false;     // флаг для таймера
+    // Функция-заглушка для генерации 10 обычных вопросов (замените на свои)
+    function generateQuizQuestions(roundNum) {
+        let qs = [];
+        for(let i=1; i<=10; i++) {
+            qs.push({
+                text: `Вопрос ${i} раунда ${roundNum}: Назовите аниме, где главного героя зовут Гоку?`,
+                options: ["Наруто", "Драгон Болл", "Ван Пис", "Блич"],
+                correct: 1,
+                points: 2
+            });
+        }
+        return qs;
+    }
+
+    // Текущее состояние игры
+    let currentRound = 0;          // 0-индекс
+    let currentQuestionIdx = 0;    // вопрос внутри раунда (0..9)
+    let gameActive = false;
+    let roundInProgress = false;
     let currentUser = null;
     let timerInterval = null;
-
-    // Состояние для image-раунда у игрока
-    let imageStep = 0;
+    
+    // Для image_sequence раунда
+    let imageStep = 0;              // 0..3 для текущего вопроса
     let answered = false;
     let answerGivenAtStep = -1;
     let userAnswerText = "";
+    let currentQuestionObj = null;
 
     // ---------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----------
     function showError(msg) {
@@ -218,14 +253,11 @@
 
     function awardPoints(playerId, delta) {
         db.ref('players/' + playerId).transaction((player) => {
-            if(player) {
-                player.score = (player.score || 0) + delta;
-            }
+            if(player) player.score = (player.score || 0) + delta;
             return player;
         });
     }
 
-    // Обновление отображения команд (для всех)
     function updateTeamsDisplay(players) {
         const teams = [[], [], [], []];
         for (let id in players) {
@@ -250,64 +282,83 @@
         }
     }
 
-    // ---------- ЛОГИКА РАУНДОВ ДЛЯ ИГРОКА ----------
-    function showRound(roundIndex) {
-        const round = rounds[roundIndex];
+    // ---------- ОТОБРАЖЕНИЕ ТЕКУЩЕГО ВОПРОСА ДЛЯ ИГРОКА ----------
+    function showCurrentQuestion() {
+        const round = roundsData[currentRound];
+        const question = round.questions[currentQuestionIdx];
         const container = document.getElementById('roundContent');
         if(!container) return;
-        if(round.type === "image") {
+        
+        if(round.type === "image_sequence") {
+            // Сброс состояния для нового вопроса
             imageStep = 0;
             answered = false;
             answerGivenAtStep = -1;
             userAnswerText = "";
-            if(timerInterval) clearInterval(timerInterval);
-            startImageRound();
-        } else {
-            // Обычная викторина
+            currentQuestionObj = question;
+            startImageQuestion(question);
+        } else if(round.type === "quiz") {
             container.innerHTML = `
                 <div class="question-block">
-                    <h2>${round.name}</h2>
-                    <div style="font-size:24px; margin:20px;">${round.question}</div>
+                    <h2>${round.name} | Вопрос ${currentQuestionIdx+1} из ${round.questions.length}</h2>
+                    <div style="font-size:24px; margin:20px;">${question.text}</div>
                     <div id="quizOptions"></div>
                 </div>
+                <div class="progress-info">⏱️ Время на ответ: 15 секунд</div>
             `;
             const optsDiv = document.getElementById('quizOptions');
-            round.options.forEach((opt, idx) => {
+            question.options.forEach((opt, idx) => {
                 const btn = document.createElement('button');
                 btn.innerText = opt;
                 btn.className = "quiz-option-btn";
                 btn.onclick = () => answerQuiz(idx);
                 optsDiv.appendChild(btn);
             });
+            // Таймер 15 секунд для обычного вопроса
+            let timeLeft = 15;
+            const timerDiv = document.createElement('div');
+            timerDiv.className = "timer";
+            timerDiv.innerText = timeLeft;
+            container.appendChild(timerDiv);
+            const timerInterval = setInterval(() => {
+                if(!gameActive || !roundInProgress) { clearInterval(timerInterval); return; }
+                timeLeft--;
+                if(timerDiv) timerDiv.innerText = timeLeft;
+                if(timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    if(roundInProgress) {
+                        // Время вышло, не ответил - переходим к следующему вопросу
+                        alert("Время вышло!");
+                        nextQuestionOrRound();
+                    }
+                }
+            }, 1000);
+            window.currentQuizTimer = timerInterval;
         }
     }
 
-    function startImageRound() {
-        const round = rounds[currentRound];
-        const container = document.getElementById('roundContent');
-        if(!container) return;
-        if(imageStep >= round.images.length) {
-            finishRound();
+    function startImageQuestion(question) {
+        if(imageStep >= 4) {
+            // Все 4 картинки показаны, переходим к следующему вопросу
+            nextQuestionOrRound();
             return;
         }
-        const img = round.images[imageStep];
+        const container = document.getElementById('roundContent');
+        const imgUrl = question.images[imageStep];
         let timeLeft = 8;
         container.innerHTML = `
             <div class="image-round-container">
-                <h2>${round.name}</h2>
+                <h2>${roundsData[currentRound].name} | Вопрос ${currentQuestionIdx+1} из ${roundsData[currentRound].questions.length}</h2>
                 <div class="timer" id="timer">${timeLeft}</div>
-                <img src="${img.url}" class="round-image" id="roundImage">
+                <img src="${imgUrl}" class="round-image" id="roundImage">
                 <div>
                     <input type="text" id="answerInput" class="answer-input" placeholder="Введите название аниме" ${answered ? 'disabled' : ''}>
                     <button id="submitAnswerBtn" ${answered ? 'disabled' : ''}>Ответить</button>
                 </div>
-                <p>Картинка ${imageStep+1} из ${round.images.length}</p>
+                <p>Картинка ${imageStep+1} из 4</p>
             </div>
         `;
-        if(answered) {
-            document.getElementById('answerInput').disabled = true;
-            document.getElementById('submitAnswerBtn').disabled = true;
-        } else {
+        if(!answered) {
             document.getElementById('submitAnswerBtn').onclick = () => {
                 if(answered) return;
                 const answer = document.getElementById('answerInput').value.trim();
@@ -317,7 +368,7 @@
                 userAnswerText = answer;
                 // Сохраняем ответ в Firebase для админа
                 if(currentUser && !currentUser.isAdmin) {
-                    const roundAnsRef = db.ref('players/' + currentUser.id + '/roundAnswers/' + currentRound);
+                    const roundAnsRef = db.ref('players/' + currentUser.id + `/roundAnswers/${currentRound}/q${currentQuestionIdx}`);
                     roundAnsRef.set({
                         answered: true,
                         step: imageStep,
@@ -327,61 +378,71 @@
                 }
                 document.getElementById('answerInput').disabled = true;
                 document.getElementById('submitAnswerBtn').disabled = true;
+                // Не останавливаем таймер, просто блокируем ввод
             };
         }
         if(timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
-            if(!gameActive || !roundInProgress) {
-                clearInterval(timerInterval);
-                return;
-            }
+            if(!gameActive || !roundInProgress) { clearInterval(timerInterval); return; }
             timeLeft--;
             const timerDiv = document.getElementById('timer');
             if(timerDiv) timerDiv.innerText = timeLeft;
             if(timeLeft <= 0) {
                 clearInterval(timerInterval);
                 if(!answered) {
-                    // Не ответил - ничего не меняется
+                    // Не ответил - переходим к следующей картинке
                 }
                 imageStep++;
-                if(imageStep < round.images.length) {
-                    startImageRound();
+                if(imageStep < 4) {
+                    startImageQuestion(question);
                 } else {
-                    finishRound();
+                    // Все 4 картинки показаны, переходим к следующему вопросу
+                    nextQuestionOrRound();
                 }
             }
         }, 1000);
     }
 
     function answerQuiz(selectedIdx) {
-        if(!gameActive) return;
-        const round = rounds[currentRound];
-        const isCorrect = (selectedIdx === round.correct);
-        let delta = isCorrect ? round.points : 0;
+        if(!gameActive || !roundInProgress) return;
+        const round = roundsData[currentRound];
+        const question = round.questions[currentQuestionIdx];
+        const isCorrect = (selectedIdx === question.correct);
+        let delta = isCorrect ? question.points : 0;
         if(delta !== 0) {
             awardPoints(currentUser.id, delta);
             alert(`✅ Правильно! +${delta} баллов`);
         } else {
-            alert(`❌ Неправильно. Правильный ответ: ${round.options[round.correct]}`);
+            alert(`❌ Неправильно. Правильный ответ: ${question.options[question.correct]}`);
         }
-        finishRound();
+        if(window.currentQuizTimer) clearInterval(window.currentQuizTimer);
+        nextQuestionOrRound();
+    }
+
+    function nextQuestionOrRound() {
+        if(timerInterval) clearInterval(timerInterval);
+        const round = roundsData[currentRound];
+        if(currentQuestionIdx + 1 < round.questions.length) {
+            currentQuestionIdx++;
+            showCurrentQuestion();
+        } else {
+            // Раунд закончен
+            finishRound();
+        }
     }
 
     function finishRound() {
-        if(timerInterval) clearInterval(timerInterval);
         roundInProgress = false;
         gameActive = false;
-        // Обновляем состояние в Firebase
-        db.ref('gameState').set({ active: false, currentRound: currentRound, roundFinished: true });
-        document.getElementById('roundContent').innerHTML = `<div class="waiting">⏳ Раунд завершён. Админ проверяет ответы и начнёт следующий раунд.</div>`;
+        db.ref('gameState').set({ active: false, currentRound: currentRound, currentQuestion: currentQuestionIdx, roundFinished: true });
+        document.getElementById('roundContent').innerHTML = `<div class="waiting">⏳ Раунд завершён. Админ проверяет ответы (для 1-го раунда) и начнёт следующий раунд.</div>`;
         if(currentUser && currentUser.isAdmin) {
             document.getElementById('nextRoundBtn').classList.remove('hidden');
-            // Обновить таблицу ответов админа
             listenAllPlayersAnswers();
         }
     }
 
-    // Админ: отображение ответов игроков для image-раунда
+    // Админ: отображение ответов игроков для image_sequence раунда
     function listenAllPlayersAnswers() {
         if(!db || !currentUser?.isAdmin) return;
         db.ref('players').on('value', (snap) => {
@@ -393,55 +454,62 @@
     function updateAdminAnswersTable(players) {
         const container = document.getElementById('adminAnswersPanel');
         if(!container) return;
-        if(!gameActive && currentRound < rounds.length && rounds[currentRound].type === "image") {
-            // Показываем таблицу ответов только если раунд завершён и это image-раунд
-            const round = rounds[currentRound];
+        const round = roundsData[currentRound];
+        if(!gameActive && round.type === "image_sequence") {
             let html = `<h3>Ответы игроков на ${round.name}</h3>`;
-            html += `<table class="admin-answers-table">`;
-            html += `<tr><th>Игрок</th><th>Команда</th><th>Ответ дан на картинке №</th><th>Текст ответа</th><th>Действие</th></tr>`;
+            html += `<table class="admin-answers-table"><tr><th>Игрок</th><th>Команда</th><th>Вопрос</th><th>Ответ дан на картинке №</th><th>Текст ответа</th><th>Действие</th></tr>`;
             let anyAnswer = false;
             for(let id in players) {
                 const p = players[id];
                 if(p.isAdmin || !p.nickname) continue;
-                const ans = p.roundAnswers && p.roundAnswers[currentRound];
-                if(ans && ans.answered) {
-                    anyAnswer = true;
-                    html += `<tr>
-                        <td>${p.nickname}</td>
-                        <td>Команда ${p.team+1}</td>
-                        <td>${ans.step+1}</td>
-                        <td>${ans.answer}</td>
-                        <td>
-                            <button class="mark-correct" data-player="${id}" data-step="${ans.step}">✅ Правильно (+${round.images[ans.step].points})</button>
-                            <button class="mark-wrong" data-player="${id}" data-step="${ans.step}">❌ Неправильно (-1)</button>
-                        </td>
-                    </tr>`;
+                const answers = p.roundAnswers && p.roundAnswers[currentRound];
+                if(answers) {
+                    for(let qIdx in answers) {
+                        const ans = answers[qIdx];
+                        if(ans && ans.answered) {
+                            anyAnswer = true;
+                            const questionData = round.questions[parseInt(qIdx)];
+                            const points = [4,3,2,1][ans.step];
+                            html += `<tr>
+                                <td>${p.nickname}</td>
+                                <td>Команда ${p.team+1}</td>
+                                <td>Вопрос ${parseInt(qIdx)+1}</td>
+                                <td>${ans.step+1}</td>
+                                <td>${ans.answer}</td>
+                                <td>
+                                    <button class="mark-correct" data-player="${id}" data-q="${qIdx}" data-step="${ans.step}">✅ Правильно (+${points})</button>
+                                    <button class="mark-wrong" data-player="${id}" data-q="${qIdx}">❌ Неправильно (-1)</button>
+                                </td>
+                            </tr>`;
+                        }
+                    }
                 }
             }
-            if(!anyAnswer) html += `<tr><td colspan="5">Нет ответов</td></tr>`;
+            if(!anyAnswer) html += `<tr><td colspan="6">Нет ответов</td></tr>`;
             html += `</table>`;
             container.innerHTML = html;
-            // Привязываем события
             document.querySelectorAll('.mark-correct').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const playerId = btn.getAttribute('data-player');
+                    const qIdx = btn.getAttribute('data-q');
                     const step = parseInt(btn.getAttribute('data-step'));
-                    const points = rounds[currentRound].images[step].points;
+                    const points = [4,3,2,1][step];
                     awardPoints(playerId, points);
-                    db.ref('players/' + playerId + '/roundAnswers/' + currentRound).remove();
+                    db.ref(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`).remove();
                     btn.parentElement.parentElement.remove();
                 });
             });
             document.querySelectorAll('.mark-wrong').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const playerId = btn.getAttribute('data-player');
+                    const qIdx = btn.getAttribute('data-q');
                     awardPoints(playerId, -1);
-                    db.ref('players/' + playerId + '/roundAnswers/' + currentRound).remove();
+                    db.ref(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`).remove();
                     btn.parentElement.parentElement.remove();
                 });
             });
-        } else if(rounds[currentRound] && rounds[currentRound].type !== "image") {
-            container.innerHTML = `<p>Раунд ${rounds[currentRound].name} - автоматическая проверка (админ не требуется)</p>`;
+        } else if(round.type !== "image_sequence") {
+            container.innerHTML = `<p>Раунд ${round.name} - автоматическая проверка (админ не требуется)</p>`;
         } else {
             container.innerHTML = "";
         }
@@ -449,32 +517,32 @@
 
     // Запуск раунда админом
     function startRound(roundIndex) {
-        if(roundIndex >= rounds.length) {
+        if(roundIndex >= roundsData.length) {
             alert("Игра завершена!");
             showFinalResults();
             return;
         }
         currentRound = roundIndex;
+        currentQuestionIdx = 0;
         gameActive = true;
         roundInProgress = true;
-        db.ref('gameState').set({ active: true, currentRound: roundIndex, roundFinished: false });
+        db.ref('gameState').set({ active: true, currentRound: roundIndex, currentQuestion: 0, roundFinished: false });
         // Очистить предыдущие ответы для этого раунда
         db.ref('players').once('value', (snap) => {
             const players = snap.val();
             for(let id in players) {
                 if(!players[id].isAdmin) {
-                    db.ref('players/' + id + '/roundAnswers/' + roundIndex).remove();
+                    db.ref(`players/${id}/roundAnswers/${roundIndex}`).remove();
                 }
             }
         });
-        showRound(roundIndex);
+        showCurrentQuestion();
         if(currentUser && currentUser.isAdmin) {
             document.getElementById('nextRoundBtn').classList.add('hidden');
             listenAllPlayersAnswers();
         }
     }
 
-    // Финальные результаты
     function showFinalResults() {
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
@@ -498,7 +566,7 @@
         }
     }
 
-    // ---------- ЛОГИН, РЕГИСТРАЦИЯ, АДМИНКА (как в предыдущей версии) ----------
+    // ---------- ЛОГИН И АДМИНКА (как ранее) ----------
     function joinGame(nickname, team) {
         if (!db) { showError("База данных не инициализирована"); return; }
         const userId = nickname + "_" + Date.now();
@@ -526,15 +594,16 @@
                     const state = snap.val();
                     if (state && state.active) {
                         gameActive = true;
-                        currentRound = state.currentRound;
                         roundInProgress = true;
-                        if (currentRound < rounds.length) showRound(currentRound);
+                        currentRound = state.currentRound;
+                        currentQuestionIdx = state.currentQuestion || 0;
+                        if (currentRound < roundsData.length) showCurrentQuestion();
                         else showFinalResults();
                     } else {
                         gameActive = false;
                         roundInProgress = false;
                         showWaitingScreen();
-                        if(currentRound < rounds.length && rounds[currentRound].type === "image") {
+                        if(currentRound < roundsData.length && roundsData[currentRound].type === "image_sequence") {
                             listenAllPlayersAnswers();
                         }
                     }
@@ -574,8 +643,9 @@
                 gameActive = true;
                 roundInProgress = true;
                 currentRound = state.currentRound;
-                if (currentRound < rounds.length) {
-                    showRound(currentRound);
+                currentQuestionIdx = state.currentQuestion || 0;
+                if (currentRound < roundsData.length) {
+                    showCurrentQuestion();
                     document.getElementById('quizScreen').classList.remove('hidden');
                     document.getElementById('waitingScreen').classList.add('hidden');
                 } else {
@@ -604,7 +674,6 @@
         if (currentUser && !currentUser.isAdmin) {
             const changeBlock = document.getElementById('changeTeamBlock');
             if (changeBlock) changeBlock.classList.remove('hidden');
-            // подсветка текущей команды
             const btns = document.querySelectorAll('#changeTeamButtons .team-btn');
             btns.forEach(btn => {
                 if(parseInt(btn.getAttribute('data-team')) === currentUser.team) btn.classList.add('selected');
@@ -635,7 +704,7 @@
         }).catch(err => { console.error(err); });
     }
 
-    // ---------- ОБРАБОТЧИКИ ИНТЕРФЕЙСА ----------
+    // ---------- ОБРАБОТЧИКИ ----------
     document.getElementById('joinBtn')?.addEventListener('click', () => {
         const nick = document.getElementById('nickname').value.trim();
         const selectedTeam = document.querySelector('#loginTeamButtons .team-btn.selected')?.getAttribute('data-team');
@@ -656,14 +725,14 @@
 
     document.getElementById('nextRoundBtn')?.addEventListener('click', () => {
         if (currentUser && currentUser.isAdmin) {
-            if (currentRound + 1 < rounds.length) startRound(currentRound + 1);
+            if (currentRound + 1 < roundsData.length) startRound(currentRound + 1);
             else showFinalResults();
         }
     });
 
     document.getElementById('resetGameBtn')?.addEventListener('click', () => {
         if (currentUser && currentUser.isAdmin && confirm("Сбросить игру? Все данные удалятся.")) {
-            db.ref('gameState').set({ active: false, currentRound: 0, roundFinished: false });
+            db.ref('gameState').set({ active: false, currentRound: 0, currentQuestion: 0, roundFinished: false });
             db.ref('players').set(null);
             localStorage.removeItem('quizUser');
             location.reload();
@@ -678,14 +747,12 @@
         } else if(pwd !== null) alert("Неверный пароль");
     });
 
-    // Выбор команды на экране входа
     document.querySelectorAll('#loginTeamButtons .team-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('#loginTeamButtons .team-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
         });
     });
-    // Выбор команды в блоке смены
     document.querySelectorAll('#changeTeamButtons .team-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             if (!gameActive && currentUser && !currentUser.isAdmin) {
@@ -699,7 +766,6 @@
         });
     });
 
-    // Восстановление сессии
     const saved = localStorage.getItem('quizUser');
     if (saved) {
         try {
@@ -715,12 +781,13 @@
                         if (state && state.active) {
                             gameActive = true;
                             currentRound = state.currentRound;
-                            if (currentRound < rounds.length) showRound(currentRound);
+                            currentQuestionIdx = state.currentQuestion || 0;
+                            if (currentRound < roundsData.length) showCurrentQuestion();
                             else showFinalResults();
                         } else {
                             gameActive = false;
                             showWaitingScreen();
-                            if (currentRound < rounds.length && rounds[currentRound]?.type === "image") listenAllPlayersAnswers();
+                            if (currentRound < roundsData.length && roundsData[currentRound]?.type === "image_sequence") listenAllPlayersAnswers();
                         }
                     });
                 }
