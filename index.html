@@ -3,8 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аниме викторина</title>
+    <title>Аниме викторина | Командная игра</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             background: linear-gradient(135deg, #1a1a2e, #16213e);
             color: white;
@@ -14,155 +20,434 @@
             margin: 0;
             min-height: 100vh;
         }
-        .quiz-container {
-            max-width: 600px;
+        .container {
+            max-width: 800px;
             margin: 0 auto;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255,255,255,0.1);
             border-radius: 20px;
             padding: 20px;
             backdrop-filter: blur(10px);
         }
-        h1 {
-            margin: 0 0 20px 0;
-        }
-        .question {
-            font-size: 24px;
-            margin: 20px 0;
-        }
-        .options button {
-            display: block;
-            width: 80%;
-            margin: 10px auto;
-            padding: 12px;
-            background: #ff4757;
-            border: none;
-            color: white;
-            font-size: 18px;
+        input, select, button {
+            padding: 10px;
+            margin: 10px;
             border-radius: 30px;
+            border: none;
+            font-size: 16px;
+        }
+        button {
+            background: #ff4757;
+            color: white;
             cursor: pointer;
             transition: 0.3s;
         }
-        .options button:hover {
+        button:hover {
             background: #ff6b81;
             transform: scale(1.02);
         }
-        .next-btn {
+        .admin-panel {
+            border-top: 2px solid #ff4757;
             margin-top: 20px;
-            padding: 10px 30px;
-            background: #1e90ff;
-            border: none;
-            color: white;
-            font-size: 18px;
-            border-radius: 30px;
-            cursor: pointer;
+            padding-top: 20px;
         }
-        .next-btn:hover {
-            background: #4169e1;
+        .team {
+            display: inline-block;
+            background: rgba(0,0,0,0.5);
+            margin: 10px;
+            padding: 10px;
+            border-radius: 15px;
+            min-width: 150px;
+        }
+        .team h3 {
+            margin: 0 0 10px 0;
+        }
+        .players-list {
+            min-height: 100px;
+        }
+        .waiting {
+            font-size: 24px;
+            color: #ffaa00;
+        }
+        .question-block {
+            background: rgba(0,0,0,0.6);
+            border-radius: 20px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .hidden {
+            display: none;
         }
         .score {
             font-size: 20px;
             margin-top: 20px;
         }
-        .result {
-            font-size: 28px;
-            margin-top: 20px;
-        }
     </style>
 </head>
 <body>
-    <div class="quiz-container">
-        <h1>🎌 Аниме викторина</h1>
-        <div class="question" id="question">Загрузка...</div>
-        <div class="options" id="options"></div>
-        <button class="next-btn" id="nextBtn">Следующий вопрос</button>
-        <div class="score" id="score">Счёт: 0</div>
-        <div class="result" id="result"></div>
+<div class="container" id="app">
+    <h1>🎌 Аниме викторина</h1>
+    <div id="loginScreen">
+        <h2>Вход в игру</h2>
+        <input type="text" id="nickname" placeholder="Твой никнейм" maxlength="20">
+        <select id="teamSelect">
+            <option value="0">Команда 1</option>
+            <option value="1">Команда 2</option>
+            <option value="2">Команда 3</option>
+            <option value="3">Команда 4</option>
+        </select>
+        <button id="joinBtn">Присоединиться</button>
+        <div id="adminLoginBlock" style="margin-top: 20px;">
+            <input type="password" id="adminPassword" placeholder="Пароль администратора">
+            <button id="adminLoginBtn">Войти как админ</button>
+        </div>
     </div>
 
-    <script>
-        const questions = [
-            {
-                text: "Кто является главным героем аниме «Наруто»?",
-                options: ["Саске Учиха", "Наруто Узумаки", "Какаши Хатаке", "Сакура Харуно"],
-                correct: 1
-            },
-            {
-                text: "Как называется техника Гоку из «Драгон Болл»?",
-                options: ["Расенган", "Камехамеха", "Гетсуга Теншо", "Реактор душ"],
-                correct: 1
-            },
-            {
-                text: "В каком аниме появляется Леви Аккерман?",
-                options: ["Ванпанчмен", "Токийский гуль", "Атака титанов", "Моя геройская академия"],
-                correct: 2
-            },
-            {
-                text: "Кто автор манги «Ван Пис»?",
-                options: ["Эйитиро Ода", "Масаси Кисимото", "Цугуми Ооба", "Харухи Миками"],
-                correct: 0
-            },
-            {
-                text: "Как звали друга Наруто, который стал Хокаге?",
-                options: ["Шикамару", "Киба", "Наруто", "Конокамару"],
-                correct: 2
+    <div id="gameScreen" class="hidden">
+        <div id="playerInfo"></div>
+        <div id="waitingScreen">
+            <div class="waiting">⏳ Ожидание начала игры...</div>
+            <div id="teamsStatus"></div>
+        </div>
+        <div id="quizScreen" class="hidden">
+            <div class="question-block">
+                <div id="questionText"></div>
+                <div id="optionsArea"></div>
+            </div>
+            <div class="score" id="scoreDisplay">Счёт: 0</div>
+        </div>
+        <div id="resultScreen" class="hidden">
+            <h2>Игра окончена!</h2>
+            <div id="finalResults"></div>
+        </div>
+    </div>
+
+    <div id="adminPanel" class="hidden admin-panel">
+        <h2>🔧 Панель администратора</h2>
+        <div id="adminTeamsStatus"></div>
+        <button id="startGameBtn">🚀 СТАРТ ИГРЫ</button>
+        <button id="resetGameBtn">🔄 Сбросить игру</button>
+    </div>
+</div>
+
+<script>
+    // ========== ЗАМЕНИ НА СВОЙ КОНФИГ FIREBASE ==========
+    const firebaseConfig = {
+        apiKey: "ТВОЙ_API_KEY",
+        authDomain: "ТВОЙ_ПРОЕКТ.firebaseapp.com",
+        databaseURL: "https://ТВОЙ_ПРОЕКТ-default-rtdb.firebaseio.com",
+        projectId: "ТВОЙ_ПРОЕКТ",
+        storageBucket: "ТВОЙ_ПРОЕКТ.appspot.com",
+        messagingSenderId: "ТВОЙ_ID",
+        appId: "ТВОЙ_APP_ID"
+    };
+    // =================================================
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Глобальные переменные
+    let currentUser = null;      // { nickname, team, isAdmin }
+    let gameActive = false;      // началась ли игра
+    let currentQuestionIndex = 0;
+    let userScore = 0;
+    let questions = [
+        { text: "Кто главный герой «Наруто»?", options: ["Саске", "Наруто", "Какаши", "Сакура"], correct: 1 },
+        { text: "Техника Гоку из «Драгон Болл»?", options: ["Расенган", "Камехамеха", "Гетсуга", "Реактор"], correct: 1 },
+        { text: "Где появляется Леви Аккерман?", options: ["Ванпанчмен", "Токийский гуль", "Атака титанов", "Моя геройская академия"], correct: 2 },
+        { text: "Автор «Ван Пис»?", options: ["Ода", "Кисимото", "Тогаси", "Кубо"], correct: 0 }
+    ];
+
+    // Слушаем изменения в Firebase
+    function listenGameState() {
+        db.ref('gameState').on('value', (snapshot) => {
+            const state = snapshot.val();
+            if (state) {
+                gameActive = state.active || false;
+                currentQuestionIndex = state.currentQuestion || 0;
+                if (gameActive && currentQuestionIndex < questions.length) {
+                    showQuizScreen();
+                } else if (gameActive && currentQuestionIndex >= questions.length) {
+                    showFinalResults();
+                } else if (!gameActive && currentUser && !currentUser.isAdmin) {
+                    showWaitingScreen();
+                }
+            } else {
+                // Инициализация состояния, если нет
+                db.ref('gameState').set({ active: false, currentQuestion: 0 });
             }
-        ];
+        });
+    }
 
-        let currentQuestion = 0;
-        let score = 0;
-        let answered = false;
+    function listenQuestions() {
+        db.ref('currentQuestion').on('value', (snapshot) => {
+            const idx = snapshot.val();
+            if (idx !== null && gameActive) {
+                currentQuestionIndex = idx;
+                if (idx < questions.length) {
+                    displayQuestion(questions[idx]);
+                } else {
+                    showFinalResults();
+                }
+            }
+        });
+    }
 
-        const questionEl = document.getElementById('question');
-        const optionsEl = document.getElementById('options');
-        const nextBtn = document.getElementById('nextBtn');
-        const scoreEl = document.getElementById('score');
-        const resultEl = document.getElementById('result');
+    function listenPlayers() {
+        db.ref('players').on('value', (snapshot) => {
+            const players = snapshot.val() || {};
+            updateTeamsDisplay(players);
+            if (currentUser && currentUser.isAdmin) {
+                updateAdminTeamsDisplay(players);
+            }
+        });
+    }
 
-        function loadQuestion() {
-            answered = false;
-            const q = questions[currentQuestion];
-            questionEl.textContent = q.text;
-            optionsEl.innerHTML = '';
-            q.options.forEach((opt, idx) => {
-                const btn = document.createElement('button');
-                btn.textContent = opt;
-                btn.onclick = () => checkAnswer(idx);
-                optionsEl.appendChild(btn);
+    function updateTeamsDisplay(players) {
+        const teams = [[], [], [], []];
+        for (let id in players) {
+            const p = players[id];
+            if (p.team >= 0 && p.team < 4) teams[p.team].push(p.nickname);
+        }
+        const container = document.getElementById('teamsStatus');
+        if (container) {
+            container.innerHTML = '<h3>Состав команд:</h3>' + teams.map((t, i) => `<div class="team"><h3>Команда ${i+1}</h3><div>${t.join(', ') || 'пусто'}</div></div>`).join('');
+        }
+    }
+
+    function updateAdminTeamsDisplay(players) {
+        const teams = [[], [], [], []];
+        for (let id in players) {
+            const p = players[id];
+            if (p.team >= 0 && p.team < 4) teams[p.team].push(p.nickname);
+        }
+        const container = document.getElementById('adminTeamsStatus');
+        if (container) {
+            container.innerHTML = '<h3>Игроки по командам:</h3>' + teams.map((t, i) => `<div class="team"><strong>Команда ${i+1}</strong>: ${t.join(', ') || 'нет'}</div>`).join('');
+        }
+    }
+
+    function joinGame(nickname, team) {
+        const userId = nickname + "_" + Date.now(); // простой ID
+        currentUser = { nickname, team, isAdmin: false, id: userId };
+        db.ref('players/' + userId).set({
+            nickname: nickname,
+            team: parseInt(team),
+            score: 0
+        });
+        localStorage.setItem('quizUser', JSON.stringify({ nickname, team, id: userId, isAdmin: false }));
+        showGameScreen();
+    }
+
+    function adminLogin(password) {
+        // Простейшая проверка пароля (можно сменить)
+        if (password === "admin123") { // задай свой пароль
+            const adminId = "admin_" + Date.now();
+            currentUser = { nickname: "Админ", team: -1, isAdmin: true, id: adminId };
+            localStorage.setItem('quizUser', JSON.stringify({ nickname: "Админ", team: -1, id: adminId, isAdmin: true }));
+            showGameScreen();
+            document.getElementById('adminPanel').classList.remove('hidden');
+        } else {
+            alert("Неверный пароль администратора");
+        }
+    }
+
+    function showGameScreen() {
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('gameScreen').classList.remove('hidden');
+        document.getElementById('playerInfo').innerText = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
+        if (!currentUser.isAdmin) {
+            // Обычный игрок
+            listenGameState();
+            listenPlayers();
+            listenQuestions();
+        } else {
+            // Админ: подписываемся на игроков и добавляем кнопки
+            listenPlayers();
+            db.ref('gameState').on('value', (snapshot) => {
+                const state = snapshot.val();
+                if (state && state.active) {
+                    gameActive = true;
+                    currentQuestionIndex = state.currentQuestion;
+                    if (currentQuestionIndex < questions.length) showQuizScreen();
+                    else showFinalResults();
+                } else {
+                    gameActive = false;
+                    showWaitingScreen();
+                }
             });
         }
+    }
 
-        function checkAnswer(selected) {
-            if (answered) return;
-            answered = true;
-            const isCorrect = (selected === questions[currentQuestion].correct);
-            if (isCorrect) {
-                score++;
-                scoreEl.textContent = `Счёт: ${score}`;
-                alert('✅ Правильно!');
+    function showWaitingScreen() {
+        document.getElementById('waitingScreen').classList.remove('hidden');
+        document.getElementById('quizScreen').classList.add('hidden');
+        document.getElementById('resultScreen').classList.add('hidden');
+    }
+
+    function showQuizScreen() {
+        document.getElementById('waitingScreen').classList.add('hidden');
+        document.getElementById('quizScreen').classList.remove('hidden');
+        document.getElementById('resultScreen').classList.add('hidden');
+        // Загрузить текущий вопрос из БД
+        db.ref('currentQuestion').once('value', (snap) => {
+            let idx = snap.val();
+            if (idx === null) idx = 0;
+            currentQuestionIndex = idx;
+            if (idx < questions.length) displayQuestion(questions[idx]);
+        });
+    }
+
+    function displayQuestion(q) {
+        document.getElementById('questionText').innerText = q.text;
+        const optsDiv = document.getElementById('optionsArea');
+        optsDiv.innerHTML = '';
+        q.options.forEach((opt, i) => {
+            const btn = document.createElement('button');
+            btn.innerText = opt;
+            btn.style.display = 'block';
+            btn.style.margin = '10px auto';
+            btn.style.padding = '10px';
+            btn.style.width = '80%';
+            btn.style.background = '#ff4757';
+            btn.style.border = 'none';
+            btn.style.borderRadius = '30px';
+            btn.style.color = 'white';
+            btn.onclick = () => answerQuestion(i);
+            optsDiv.appendChild(btn);
+        });
+    }
+
+    function answerQuestion(selected) {
+        if (!gameActive) return;
+        db.ref('currentQuestion').once('value', (snap) => {
+            const qIndex = snap.val();
+            if (qIndex >= questions.length) return;
+            const correct = questions[qIndex].correct;
+            if (selected === correct) {
+                userScore++;
+                document.getElementById('scoreDisplay').innerText = `Счёт: ${userScore}`;
+                // Сохраняем счёт в Firebase (для команды или игрока)
+                if (currentUser && !currentUser.isAdmin) {
+                    db.ref('players/' + currentUser.id + '/score').set(userScore);
+                }
+                alert("✅ Правильно!");
             } else {
-                const correctAns = questions[currentQuestion].options[questions[currentQuestion].correct];
-                alert(`❌ Неправильно! Правильный ответ: ${correctAns}`);
+                alert(`❌ Неправильно. Правильный ответ: ${questions[qIndex].options[correct]}`);
             }
-        }
+            // Автоматически перейти к следующему вопросу через 1 секунду? Лучше админ сам переключает
+            // Но для простоты сделаем авто-следующий вопрос через 2 сек (админ может отключить)
+            setTimeout(() => {
+                db.ref('gameState').once('value', (stateSnap) => {
+                    let state = stateSnap.val();
+                    if (state && state.active && state.currentQuestion < questions.length-1) {
+                        let newIndex = state.currentQuestion + 1;
+                        db.ref('gameState').update({ currentQuestion: newIndex });
+                        db.ref('currentQuestion').set(newIndex);
+                    } else if (state && state.currentQuestion === questions.length-1) {
+                        // Конец игры
+                        db.ref('gameState').update({ active: false, currentQuestion: questions.length });
+                        showFinalResults();
+                    }
+                });
+            }, 1500);
+        });
+    }
 
-        function nextQuestion() {
-            if (!answered) {
-                alert('Сначала ответь на вопрос!');
-                return;
+    function showFinalResults() {
+        document.getElementById('waitingScreen').classList.add('hidden');
+        document.getElementById('quizScreen').classList.add('hidden');
+        document.getElementById('resultScreen').classList.remove('hidden');
+        db.ref('players').once('value', (snap) => {
+            const players = snap.val() || {};
+            let teamsScores = [0,0,0,0];
+            for (let id in players) {
+                let p = players[id];
+                if (p.team >= 0 && p.team < 4) {
+                    teamsScores[p.team] += (p.score || 0);
+                }
             }
-            currentQuestion++;
-            if (currentQuestion < questions.length) {
-                loadQuestion();
+            let html = '<h3>Результаты команд:</h3>';
+            for (let i=0; i<4; i++) {
+                html += `<div class="team">Команда ${i+1}: ${teamsScores[i]} очков</div>`;
+            }
+            document.getElementById('finalResults').innerHTML = html;
+        });
+    }
+
+    // Кнопки админа
+    document.getElementById('startGameBtn')?.addEventListener('click', () => {
+        if (currentUser && currentUser.isAdmin) {
+            db.ref('gameState').set({ active: true, currentQuestion: 0 });
+            db.ref('currentQuestion').set(0);
+            // Обнулить очки игроков
+            db.ref('players').once('value', (snap) => {
+                const players = snap.val();
+                for (let id in players) {
+                    db.ref('players/' + id + '/score').set(0);
+                }
+            });
+            alert("Игра начата!");
+        }
+    });
+
+    document.getElementById('resetGameBtn')?.addEventListener('click', () => {
+        if (currentUser && currentUser.isAdmin) {
+            db.ref('gameState').set({ active: false, currentQuestion: 0 });
+            db.ref('players').set(null);
+            localStorage.removeItem('quizUser');
+            location.reload();
+        }
+    });
+
+    // Логин
+    document.getElementById('joinBtn')?.addEventListener('click', () => {
+        const nick = document.getElementById('nickname').value.trim();
+        const team = document.getElementById('teamSelect').value;
+        if (nick === "") {
+            alert("Введи никнейм");
+            return;
+        }
+        joinGame(nick, team);
+    });
+
+    document.getElementById('adminLoginBtn')?.addEventListener('click', () => {
+        const pwd = document.getElementById('adminPassword').value;
+        adminLogin(pwd);
+    });
+
+    // Проверка сохранённого пользователя
+    const saved = localStorage.getItem('quizUser');
+    if (saved) {
+        try {
+            const u = JSON.parse(saved);
+            if (u.isAdmin) {
+                currentUser = u;
+                showGameScreen();
+                document.getElementById('adminPanel').classList.remove('hidden');
+                listenPlayers();
+                db.ref('gameState').on('value', (snapshot) => {
+                    const state = snapshot.val();
+                    if (state && state.active) {
+                        gameActive = true;
+                        currentQuestionIndex = state.currentQuestion;
+                        if (currentQuestionIndex < questions.length) showQuizScreen();
+                        else showFinalResults();
+                    } else {
+                        gameActive = false;
+                        showWaitingScreen();
+                    }
+                });
             } else {
-                questionEl.style.display = 'none';
-                optionsEl.style.display = 'none';
-                nextBtn.style.display = 'none';
-                resultEl.innerHTML = `🎉 Твой результат: ${score} из ${questions.length} 🎉<br><br>✨ Спасибо за игру! ✨`;
+                // Восстановить игрока
+                currentUser = u;
+                db.ref('players/' + u.id).set({ nickname: u.nickname, team: u.team, score: 0 });
+                showGameScreen();
+                listenGameState();
+                listenPlayers();
+                listenQuestions();
             }
-        }
-
-        nextBtn.onclick = nextQuestion;
-        loadQuestion();
-    </script>
+        } catch(e) {}
+    }
+</script>
 </body>
 </html>
