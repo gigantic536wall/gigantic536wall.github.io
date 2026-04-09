@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseio.com https://*.googleapis.com;">
-    <title>Аниме викторина | Командная игра</title>
-    <!-- Firebase SDK -->
+    <title>Аниме викторина | 8 раундов</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <style>
@@ -20,7 +19,7 @@
             min-height: 100vh;
         }
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             margin: 0 auto;
             background: rgba(255,255,255,0.1);
             border-radius: 20px;
@@ -58,27 +57,14 @@
             font-size: 20px;
             font-weight: bold;
             border-radius: 60px;
-            background: #2c3e66;
             transition: 0.2s;
         }
-        .team-btn.selected {
-            background: #ff4757;
-            box-shadow: 0 0 15px rgba(255,71,87,0.5);
-            transform: scale(1.02);
-        }
-        .team-btn:hover {
-            background: #ff6b81;
-        }
-        /* Цвета для разных команд */
         .team-btn[data-team="0"] { background: #3498db; }
         .team-btn[data-team="1"] { background: #2ecc71; }
         .team-btn[data-team="2"] { background: #f39c12; }
         .team-btn[data-team="3"] { background: #9b59b6; }
-        .team-btn[data-team="0"].selected { background: #2980b9; }
-        .team-btn[data-team="1"].selected { background: #27ae60; }
-        .team-btn[data-team="2"].selected { background: #e67e22; }
-        .team-btn[data-team="3"].selected { background: #8e44ad; }
-
+        .team-btn.selected { background: #ff4757; box-shadow: 0 0 15px rgba(255,71,87,0.5); transform: scale(1.02); }
+        
         .admin-panel {
             border-top: 2px solid #ff4757;
             margin-top: 20px;
@@ -93,66 +79,39 @@
             min-width: 150px;
             vertical-align: top;
         }
-        .team-display h3 {
-            margin: 0 0 10px 0;
-        }
-        .waiting {
-            font-size: 24px;
-            color: #ffaa00;
-        }
-        .question-block {
-            background: rgba(0,0,0,0.6);
-            border-radius: 20px;
-            padding: 20px;
-            margin-top: 20px;
-        }
-        .hidden {
-            display: none;
-        }
-        .score {
-            font-size: 20px;
-            margin-top: 20px;
-        }
-        .error-message {
-            color: #ff8888;
-            background: #440000;
-            padding: 10px;
-            border-radius: 10px;
-            margin: 10px;
-        }
-        .change-team-area {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 2px solid rgba(255,255,255,0.3);
-        }
-        .nickname-input {
-            font-size: 18px;
-            width: 250px;
-        }
-        .action-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
+        .waiting { font-size: 24px; color: #ffaa00; }
+        .question-block { background: rgba(0,0,0,0.6); border-radius: 20px; padding: 20px; margin-top: 20px; }
+        .hidden { display: none; }
+        .score { font-size: 20px; margin-top: 20px; }
+        .error-message { color: #ff8888; background: #440000; padding: 10px; border-radius: 10px; margin: 10px; }
+        .change-team-area { margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(255,255,255,0.3); }
+        .nickname-input { font-size: 18px; width: 250px; }
+        .action-buttons { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        
+        .image-round-container { text-align: center; }
+        .round-image { max-width: 80%; max-height: 300px; border-radius: 15px; margin: 20px auto; display: block; }
+        .timer { font-size: 48px; font-weight: bold; margin: 20px; color: #ffaa00; }
+        .answer-input { width: 80%; font-size: 18px; text-align: center; }
+        .admin-answers-table { width: 100%; border-collapse: collapse; margin-top: 20px; background: rgba(0,0,0,0.5); }
+        .admin-answers-table th, .admin-answers-table td { border: 1px solid #fff; padding: 8px; text-align: left; }
+        .quiz-option-btn { display: block; width: 80%; margin: 10px auto; background: #ff4757; border: none; border-radius: 40px; color: white; font-size: 18px; padding: 12px; }
+        .quiz-option-btn:hover { background: #ff6b81; }
     </style>
 </head>
 <body>
 <div class="container" id="app">
-    <h1>🎌 Аниме викторина</h1>
+    <h1>🎌 Аниме викторина | 8 раундов</h1>
     
     <!-- Экран входа -->
     <div id="loginScreen">
         <h2>Вход в игру</h2>
         <input type="text" id="nickname" class="nickname-input" placeholder="Твой никнейм" maxlength="20">
-        
         <div class="team-buttons" id="loginTeamButtons">
             <button class="team-btn" data-team="0">Команда 1</button>
             <button class="team-btn" data-team="1">Команда 2</button>
             <button class="team-btn" data-team="2">Команда 3</button>
             <button class="team-btn" data-team="3">Команда 4</button>
         </div>
-        
         <div class="action-buttons">
             <button id="joinBtn">Присоединиться</button>
             <button id="adminLoginFromStartBtn">Войти как администратор</button>
@@ -160,13 +119,12 @@
         <div id="errorDisplay" class="error-message" style="display:none;"></div>
     </div>
 
-    <!-- Экран игры (после входа) -->
+    <!-- Экран игры -->
     <div id="gameScreen" class="hidden">
         <div id="playerInfo"></div>
         <div id="waitingScreen">
             <div class="waiting">⏳ Ожидание начала игры...</div>
             <div id="teamsStatus"></div>
-            <!-- Блок смены команды (большие кнопки) -->
             <div id="changeTeamBlock" class="change-team-area hidden">
                 <h3>Выберите команду (можно менять до старта)</h3>
                 <div class="team-buttons" id="changeTeamButtons">
@@ -175,16 +133,12 @@
                     <button class="team-btn" data-team="2">Команда 3</button>
                     <button class="team-btn" data-team="3">Команда 4</button>
                 </div>
-                <div id="changeTeamMsg" style="margin-top: 10px;"></div>
-                <button id="becomeAdminBtn" style="background: #3498db; margin-top: 15px;">👑 Стать администратором</button>
+                <div id="changeTeamMsg"></div>
+                <button id="becomeAdminBtn" style="background: #3498db;">👑 Стать администратором</button>
             </div>
         </div>
         <div id="quizScreen" class="hidden">
-            <div class="question-block">
-                <div id="questionText"></div>
-                <div id="optionsArea"></div>
-            </div>
-            <div class="score" id="scoreDisplay">Счёт: 0</div>
+            <div id="roundContent"></div>
         </div>
         <div id="resultScreen" class="hidden">
             <h2>Игра окончена!</h2>
@@ -196,15 +150,17 @@
     <div id="adminPanel" class="hidden admin-panel">
         <h2>🔧 Панель администратора</h2>
         <div id="adminTeamsStatus"></div>
-        <button id="startGameBtn">🚀 СТАРТ ИГРЫ</button>
-        <button id="resetGameBtn">🔄 Сбросить игру</button>
+        <div id="adminRoundControls">
+            <button id="startGameBtn">🚀 СТАРТ ИГРЫ (раунд 1)</button>
+            <button id="nextRoundBtn" class="hidden">➡️ Следующий раунд</button>
+            <button id="resetGameBtn">🔄 Сбросить игру</button>
+        </div>
+        <div id="adminAnswersPanel"></div>
     </div>
 </div>
 
 <script>
-    console.log("Скрипт загружен");
-
-    // ========== КОНФИГ FIREBASE ==========
+    // ---------- КОНФИГ FIREBASE ----------
     const firebaseConfig = {
         apiKey: "AIzaSyCGkWhrIEg-WPusS2QqTILVWCht-WXS4ug",
         authDomain: "anime-database-7d48e.firebaseapp.com",
@@ -214,116 +170,67 @@
         messagingSenderId: "143822737117",
         appId: "1:143822737117:web:5195d511264dbb80175534"
     };
-    console.log("Конфиг:", firebaseConfig);
-
     let db;
     try {
         firebase.initializeApp(firebaseConfig);
         db = firebase.database();
         console.log("Firebase инициализирован");
-        db.ref('.info/connected').on('value', (snap) => {
-            console.log("Соединение с Firebase:", snap.val() ? "есть" : "нет");
-        });
-    } catch (e) {
-        console.error("Ошибка Firebase:", e);
-        document.getElementById('errorDisplay').innerText = "Ошибка Firebase: " + e.message;
-        document.getElementById('errorDisplay').style.display = 'block';
-    }
+    } catch(e) { console.error(e); }
 
-    // Переменные игры
-    let currentUser = null;
-    let gameActive = false;
-    let currentQuestionIndex = 0;
-    let userScore = 0;
-    let selectedTeamForLogin = 0;  // для экрана входа
-
-    const questions = [
-        { text: "Кто главный герой «Наруто»?", options: ["Саске", "Наруто", "Какаши", "Сакура"], correct: 1 },
-        { text: "Техника Гоку из «Драгон Болл»?", options: ["Расенган", "Камехамеха", "Гетсуга", "Реактор"], correct: 1 },
-        { text: "Где появляется Леви Аккерман?", options: ["Ванпанчмен", "Токийский гуль", "Атака титанов", "Моя геройская академия"], correct: 2 },
-        { text: "Автор «Ван Пис»?", options: ["Ода", "Кисимото", "Тогаси", "Кубо"], correct: 0 }
+    // ---------- ДАННЫЕ РАУНДОВ (8 штук) ----------
+    const rounds = [
+        { // Раунд 1: угадай по картинке
+            type: "image",
+            name: "Раунд 1: Угадай аниме по картинке",
+            images: [
+                { url: "https://via.placeholder.com/400x300?text=Аниме+1", points: 4 },   // ЗАМЕНИТЕ НА СВОИ URL
+                { url: "https://via.placeholder.com/400x300?text=Аниме+2", points: 3 },
+                { url: "https://via.placeholder.com/400x300?text=Аниме+3", points: 2 },
+                { url: "https://via.placeholder.com/400x300?text=Аниме+4", points: 1 }
+            ]
+        },
+        { type: "quiz", name: "Раунд 2", question: "Кто главный герой «Наруто»?", options: ["Саске", "Наруто", "Какаши", "Сакура"], correct: 1, points: 2 },
+        { type: "quiz", name: "Раунд 3", question: "Техника Гоку из «Драгон Болл»?", options: ["Расенган", "Камехамеха", "Гетсуга", "Реактор"], correct: 1, points: 2 },
+        { type: "quiz", name: "Раунд 4", question: "Где появляется Леви Аккерман?", options: ["Ванпанчмен", "Токийский гуль", "Атака титанов", "Моя геройская академия"], correct: 2, points: 2 },
+        { type: "quiz", name: "Раунд 5", question: "Автор «Ван Пис»?", options: ["Ода", "Кисимото", "Тогаси", "Кубо"], correct: 0, points: 2 },
+        { type: "quiz", name: "Раунд 6", question: "Название меча у Танджиро из «Клинка, рассекающего демонов»?", options: ["Ничирин", "Солнечный", "Танджиро", "Хашира"], correct: 0, points: 2 },
+        { type: "quiz", name: "Раунд 7", question: "Как звали друга Наруто, который стал Хокаге?", options: ["Шикамару", "Киба", "Наруто", "Конокамару"], correct: 2, points: 2 },
+        { type: "quiz", name: "Раунд 8", question: "Кто создал «Атаку титанов»?", options: ["Ода", "Исаяма", "Араки", "Танака"], correct: 1, points: 2 }
     ];
 
-    // ---- Вспомогательные функции UI для кнопок команд ----
-    function highlightLoginTeam(team) {
-        document.querySelectorAll('#loginTeamButtons .team-btn').forEach(btn => {
-            if (parseInt(btn.getAttribute('data-team')) === team) {
-                btn.classList.add('selected');
-            } else {
-                btn.classList.remove('selected');
-            }
-        });
-    }
+    let currentRound = 0;           // 0-индекс
+    let gameActive = false;          // активна ли игра (раунд в процессе)
+    let roundInProgress = false;     // флаг для таймера
+    let currentUser = null;
+    let timerInterval = null;
 
-    function highlightChangeTeam(team) {
-        document.querySelectorAll('#changeTeamButtons .team-btn').forEach(btn => {
-            if (parseInt(btn.getAttribute('data-team')) === team) {
-                btn.classList.add('selected');
-            } else {
-                btn.classList.remove('selected');
-            }
-        });
-    }
+    // Состояние для image-раунда у игрока
+    let imageStep = 0;
+    let answered = false;
+    let answerGivenAtStep = -1;
+    let userAnswerText = "";
 
+    // ---------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----------
     function showError(msg) {
         const errDiv = document.getElementById('errorDisplay');
-        errDiv.innerText = msg;
-        errDiv.style.display = 'block';
-        setTimeout(() => errDiv.style.display = 'none', 5000);
+        if(errDiv) { errDiv.innerText = msg; errDiv.style.display = 'block'; setTimeout(() => errDiv.style.display = 'none', 5000); }
     }
 
-    // --- Игровые функции ---
-    function listenGameState() {
-        if (!db) return;
-        db.ref('gameState').on('value', (snap) => {
-            const state = snap.val();
-            if (state) {
-                gameActive = state.active;
-                currentQuestionIndex = state.currentQuestion;
-                if (gameActive && currentQuestionIndex < questions.length) showQuizScreen();
-                else if (gameActive && currentQuestionIndex >= questions.length) showFinalResults();
-                else if (!gameActive && currentUser && !currentUser.isAdmin) {
-                    showWaitingScreen();
-                    const changeBlock = document.getElementById('changeTeamBlock');
-                    if (changeBlock) changeBlock.classList.remove('hidden');
-                    // Подсветить текущую команду в блоке смены
-                    if (currentUser && currentUser.team !== undefined) {
-                        highlightChangeTeam(currentUser.team);
-                    }
-                }
-            } else {
-                db.ref('gameState').set({ active: false, currentQuestion: 0 });
+    function awardPoints(playerId, delta) {
+        db.ref('players/' + playerId).transaction((player) => {
+            if(player) {
+                player.score = (player.score || 0) + delta;
             }
+            return player;
         });
     }
 
-    function listenQuestions() {
-        if (!db) return;
-        db.ref('currentQuestion').on('value', (snap) => {
-            const idx = snap.val();
-            if (idx !== null && gameActive && idx < questions.length) {
-                currentQuestionIndex = idx;
-                displayQuestion(questions[idx]);
-            } else if (idx !== null && gameActive && idx >= questions.length) {
-                showFinalResults();
-            }
-        });
-    }
-
-    function listenPlayers() {
-        if (!db) return;
-        db.ref('players').on('value', (snap) => {
-            const players = snap.val() || {};
-            updateTeamsDisplay(players);
-            if (currentUser && currentUser.isAdmin) updateAdminTeamsDisplay(players);
-        });
-    }
-
+    // Обновление отображения команд (для всех)
     function updateTeamsDisplay(players) {
         const teams = [[], [], [], []];
         for (let id in players) {
             const p = players[id];
-            if (p && p.team >= 0 && p.team < 4) teams[p.team].push(p.nickname);
+            if (p && p.team >= 0 && p.team < 4 && !p.isAdmin) teams[p.team].push(p.nickname);
         }
         const container = document.getElementById('teamsStatus');
         if (container) {
@@ -335,7 +242,7 @@
         const teams = [[], [], [], []];
         for (let id in players) {
             const p = players[id];
-            if (p && p.team >= 0 && p.team < 4) teams[p.team].push(p.nickname);
+            if (p && p.team >= 0 && p.team < 4 && !p.isAdmin) teams[p.team].push(p.nickname);
         }
         const container = document.getElementById('adminTeamsStatus');
         if (container) {
@@ -343,6 +250,255 @@
         }
     }
 
+    // ---------- ЛОГИКА РАУНДОВ ДЛЯ ИГРОКА ----------
+    function showRound(roundIndex) {
+        const round = rounds[roundIndex];
+        const container = document.getElementById('roundContent');
+        if(!container) return;
+        if(round.type === "image") {
+            imageStep = 0;
+            answered = false;
+            answerGivenAtStep = -1;
+            userAnswerText = "";
+            if(timerInterval) clearInterval(timerInterval);
+            startImageRound();
+        } else {
+            // Обычная викторина
+            container.innerHTML = `
+                <div class="question-block">
+                    <h2>${round.name}</h2>
+                    <div style="font-size:24px; margin:20px;">${round.question}</div>
+                    <div id="quizOptions"></div>
+                </div>
+            `;
+            const optsDiv = document.getElementById('quizOptions');
+            round.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.innerText = opt;
+                btn.className = "quiz-option-btn";
+                btn.onclick = () => answerQuiz(idx);
+                optsDiv.appendChild(btn);
+            });
+        }
+    }
+
+    function startImageRound() {
+        const round = rounds[currentRound];
+        const container = document.getElementById('roundContent');
+        if(!container) return;
+        if(imageStep >= round.images.length) {
+            finishRound();
+            return;
+        }
+        const img = round.images[imageStep];
+        let timeLeft = 8;
+        container.innerHTML = `
+            <div class="image-round-container">
+                <h2>${round.name}</h2>
+                <div class="timer" id="timer">${timeLeft}</div>
+                <img src="${img.url}" class="round-image" id="roundImage">
+                <div>
+                    <input type="text" id="answerInput" class="answer-input" placeholder="Введите название аниме" ${answered ? 'disabled' : ''}>
+                    <button id="submitAnswerBtn" ${answered ? 'disabled' : ''}>Ответить</button>
+                </div>
+                <p>Картинка ${imageStep+1} из ${round.images.length}</p>
+            </div>
+        `;
+        if(answered) {
+            document.getElementById('answerInput').disabled = true;
+            document.getElementById('submitAnswerBtn').disabled = true;
+        } else {
+            document.getElementById('submitAnswerBtn').onclick = () => {
+                if(answered) return;
+                const answer = document.getElementById('answerInput').value.trim();
+                if(answer === "") { alert("Введите ответ"); return; }
+                answered = true;
+                answerGivenAtStep = imageStep;
+                userAnswerText = answer;
+                // Сохраняем ответ в Firebase для админа
+                if(currentUser && !currentUser.isAdmin) {
+                    const roundAnsRef = db.ref('players/' + currentUser.id + '/roundAnswers/' + currentRound);
+                    roundAnsRef.set({
+                        answered: true,
+                        step: imageStep,
+                        answer: answer,
+                        timestamp: Date.now()
+                    });
+                }
+                document.getElementById('answerInput').disabled = true;
+                document.getElementById('submitAnswerBtn').disabled = true;
+            };
+        }
+        if(timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            if(!gameActive || !roundInProgress) {
+                clearInterval(timerInterval);
+                return;
+            }
+            timeLeft--;
+            const timerDiv = document.getElementById('timer');
+            if(timerDiv) timerDiv.innerText = timeLeft;
+            if(timeLeft <= 0) {
+                clearInterval(timerInterval);
+                if(!answered) {
+                    // Не ответил - ничего не меняется
+                }
+                imageStep++;
+                if(imageStep < round.images.length) {
+                    startImageRound();
+                } else {
+                    finishRound();
+                }
+            }
+        }, 1000);
+    }
+
+    function answerQuiz(selectedIdx) {
+        if(!gameActive) return;
+        const round = rounds[currentRound];
+        const isCorrect = (selectedIdx === round.correct);
+        let delta = isCorrect ? round.points : 0;
+        if(delta !== 0) {
+            awardPoints(currentUser.id, delta);
+            alert(`✅ Правильно! +${delta} баллов`);
+        } else {
+            alert(`❌ Неправильно. Правильный ответ: ${round.options[round.correct]}`);
+        }
+        finishRound();
+    }
+
+    function finishRound() {
+        if(timerInterval) clearInterval(timerInterval);
+        roundInProgress = false;
+        gameActive = false;
+        // Обновляем состояние в Firebase
+        db.ref('gameState').set({ active: false, currentRound: currentRound, roundFinished: true });
+        document.getElementById('roundContent').innerHTML = `<div class="waiting">⏳ Раунд завершён. Админ проверяет ответы и начнёт следующий раунд.</div>`;
+        if(currentUser && currentUser.isAdmin) {
+            document.getElementById('nextRoundBtn').classList.remove('hidden');
+            // Обновить таблицу ответов админа
+            listenAllPlayersAnswers();
+        }
+    }
+
+    // Админ: отображение ответов игроков для image-раунда
+    function listenAllPlayersAnswers() {
+        if(!db || !currentUser?.isAdmin) return;
+        db.ref('players').on('value', (snap) => {
+            const players = snap.val() || {};
+            updateAdminAnswersTable(players);
+        });
+    }
+
+    function updateAdminAnswersTable(players) {
+        const container = document.getElementById('adminAnswersPanel');
+        if(!container) return;
+        if(!gameActive && currentRound < rounds.length && rounds[currentRound].type === "image") {
+            // Показываем таблицу ответов только если раунд завершён и это image-раунд
+            const round = rounds[currentRound];
+            let html = `<h3>Ответы игроков на ${round.name}</h3>`;
+            html += `<table class="admin-answers-table">`;
+            html += `<tr><th>Игрок</th><th>Команда</th><th>Ответ дан на картинке №</th><th>Текст ответа</th><th>Действие</th></tr>`;
+            let anyAnswer = false;
+            for(let id in players) {
+                const p = players[id];
+                if(p.isAdmin || !p.nickname) continue;
+                const ans = p.roundAnswers && p.roundAnswers[currentRound];
+                if(ans && ans.answered) {
+                    anyAnswer = true;
+                    html += `<tr>
+                        <td>${p.nickname}</td>
+                        <td>Команда ${p.team+1}</td>
+                        <td>${ans.step+1}</td>
+                        <td>${ans.answer}</td>
+                        <td>
+                            <button class="mark-correct" data-player="${id}" data-step="${ans.step}">✅ Правильно (+${round.images[ans.step].points})</button>
+                            <button class="mark-wrong" data-player="${id}" data-step="${ans.step}">❌ Неправильно (-1)</button>
+                        </td>
+                    </tr>`;
+                }
+            }
+            if(!anyAnswer) html += `<tr><td colspan="5">Нет ответов</td></tr>`;
+            html += `</table>`;
+            container.innerHTML = html;
+            // Привязываем события
+            document.querySelectorAll('.mark-correct').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const playerId = btn.getAttribute('data-player');
+                    const step = parseInt(btn.getAttribute('data-step'));
+                    const points = rounds[currentRound].images[step].points;
+                    awardPoints(playerId, points);
+                    db.ref('players/' + playerId + '/roundAnswers/' + currentRound).remove();
+                    btn.parentElement.parentElement.remove();
+                });
+            });
+            document.querySelectorAll('.mark-wrong').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const playerId = btn.getAttribute('data-player');
+                    awardPoints(playerId, -1);
+                    db.ref('players/' + playerId + '/roundAnswers/' + currentRound).remove();
+                    btn.parentElement.parentElement.remove();
+                });
+            });
+        } else if(rounds[currentRound] && rounds[currentRound].type !== "image") {
+            container.innerHTML = `<p>Раунд ${rounds[currentRound].name} - автоматическая проверка (админ не требуется)</p>`;
+        } else {
+            container.innerHTML = "";
+        }
+    }
+
+    // Запуск раунда админом
+    function startRound(roundIndex) {
+        if(roundIndex >= rounds.length) {
+            alert("Игра завершена!");
+            showFinalResults();
+            return;
+        }
+        currentRound = roundIndex;
+        gameActive = true;
+        roundInProgress = true;
+        db.ref('gameState').set({ active: true, currentRound: roundIndex, roundFinished: false });
+        // Очистить предыдущие ответы для этого раунда
+        db.ref('players').once('value', (snap) => {
+            const players = snap.val();
+            for(let id in players) {
+                if(!players[id].isAdmin) {
+                    db.ref('players/' + id + '/roundAnswers/' + roundIndex).remove();
+                }
+            }
+        });
+        showRound(roundIndex);
+        if(currentUser && currentUser.isAdmin) {
+            document.getElementById('nextRoundBtn').classList.add('hidden');
+            listenAllPlayersAnswers();
+        }
+    }
+
+    // Финальные результаты
+    function showFinalResults() {
+        document.getElementById('waitingScreen').classList.add('hidden');
+        document.getElementById('quizScreen').classList.add('hidden');
+        document.getElementById('resultScreen').classList.remove('hidden');
+        if(db) {
+            db.ref('players').once('value', (snap) => {
+                const players = snap.val() || {};
+                let teamsScores = [0,0,0,0];
+                for(let id in players) {
+                    let p = players[id];
+                    if(p && p.team >= 0 && p.team < 4 && !p.isAdmin) {
+                        teamsScores[p.team] += (p.score || 0);
+                    }
+                }
+                let html = '<h3>Итоговые результаты команд:</h3>';
+                for(let i=0; i<4; i++) {
+                    html += `<div class="team-display">Команда ${i+1}: ${teamsScores[i]} очков</div>`;
+                }
+                document.getElementById('finalResults').innerHTML = html;
+            });
+        }
+    }
+
+    // ---------- ЛОГИН, РЕГИСТРАЦИЯ, АДМИНКА (как в предыдущей версии) ----------
     function joinGame(nickname, team) {
         if (!db) { showError("База данных не инициализирована"); return; }
         const userId = nickname + "_" + Date.now();
@@ -350,43 +506,12 @@
         db.ref('players/' + userId).set({
             nickname: nickname,
             team: parseInt(team),
-            score: 0
+            score: 0,
+            isAdmin: false
         }).then(() => {
             localStorage.setItem('quizUser', JSON.stringify({ nickname, team: parseInt(team), id: userId, isAdmin: false }));
             showGameScreen();
-        }).catch(err => {
-            console.error(err);
-            showError("Ошибка: " + err.message);
-        });
-    }
-
-    function changeTeam(newTeam) {
-        if (!db) return;
-        if (gameActive) {
-            document.getElementById('changeTeamMsg').innerHTML = "❌ Нельзя сменить команду после начала игры!";
-            setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 3000);
-            return;
-        }
-        if (!currentUser || currentUser.isAdmin) return;
-        const teamNum = parseInt(newTeam);
-        if (isNaN(teamNum)) return;
-        db.ref('players/' + currentUser.id).update({
-            team: teamNum
-        }).then(() => {
-            currentUser.team = teamNum;
-            const saved = localStorage.getItem('quizUser');
-            if (saved) {
-                let u = JSON.parse(saved);
-                u.team = teamNum;
-                localStorage.setItem('quizUser', JSON.stringify(u));
-            }
-            document.getElementById('changeTeamMsg').innerHTML = "✅ Команда изменена!";
-            setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 2000);
-            highlightChangeTeam(teamNum);
-        }).catch(err => {
-            console.error(err);
-            document.getElementById('changeTeamMsg').innerHTML = "❌ Ошибка смены команды";
-        });
+        }).catch(err => { console.error(err); showError("Ошибка: " + err.message); });
     }
 
     function adminLogin(password) {
@@ -401,19 +526,32 @@
                     const state = snap.val();
                     if (state && state.active) {
                         gameActive = true;
-                        currentQuestionIndex = state.currentQuestion;
-                        if (currentQuestionIndex < questions.length) showQuizScreen();
+                        currentRound = state.currentRound;
+                        roundInProgress = true;
+                        if (currentRound < rounds.length) showRound(currentRound);
                         else showFinalResults();
                     } else {
                         gameActive = false;
+                        roundInProgress = false;
                         showWaitingScreen();
+                        if(currentRound < rounds.length && rounds[currentRound].type === "image") {
+                            listenAllPlayersAnswers();
+                        }
                     }
                 });
-                listenPlayers();
+                listenPlayersForAdmin();
             }
         } else {
             alert("Неверный пароль администратора");
         }
+    }
+
+    function listenPlayersForAdmin() {
+        if(!db) return;
+        db.ref('players').on('value', (snap) => {
+            const players = snap.val() || {};
+            updateAdminTeamsDisplay(players);
+        });
     }
 
     function showGameScreen() {
@@ -421,13 +559,42 @@
         document.getElementById('gameScreen').classList.remove('hidden');
         document.getElementById('playerInfo').innerHTML = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
         if (!currentUser.isAdmin && db) {
-            listenGameState();
-            listenPlayers();
-            listenQuestions();
-            // Покажем блок смены команды (будет виден, если игра не активна)
+            listenGameStateForPlayer();
+            listenPlayersForPlayer();
         } else if (currentUser.isAdmin) {
             document.getElementById('changeTeamBlock')?.classList.add('hidden');
         }
+    }
+
+    function listenGameStateForPlayer() {
+        if(!db) return;
+        db.ref('gameState').on('value', (snap) => {
+            const state = snap.val();
+            if (state && state.active) {
+                gameActive = true;
+                roundInProgress = true;
+                currentRound = state.currentRound;
+                if (currentRound < rounds.length) {
+                    showRound(currentRound);
+                    document.getElementById('quizScreen').classList.remove('hidden');
+                    document.getElementById('waitingScreen').classList.add('hidden');
+                } else {
+                    showFinalResults();
+                }
+            } else {
+                gameActive = false;
+                roundInProgress = false;
+                showWaitingScreen();
+            }
+        });
+    }
+
+    function listenPlayersForPlayer() {
+        if(!db) return;
+        db.ref('players').on('value', (snap) => {
+            const players = snap.val() || {};
+            updateTeamsDisplay(players);
+        });
     }
 
     function showWaitingScreen() {
@@ -437,185 +604,99 @@
         if (currentUser && !currentUser.isAdmin) {
             const changeBlock = document.getElementById('changeTeamBlock');
             if (changeBlock) changeBlock.classList.remove('hidden');
-            highlightChangeTeam(currentUser.team);
-        }
-    }
-
-    function showQuizScreen() {
-        document.getElementById('waitingScreen').classList.add('hidden');
-        document.getElementById('quizScreen').classList.remove('hidden');
-        document.getElementById('resultScreen').classList.add('hidden');
-        const changeBlock = document.getElementById('changeTeamBlock');
-        if (changeBlock) changeBlock.classList.add('hidden');
-        if (db) {
-            db.ref('currentQuestion').once('value', (snap) => {
-                let idx = snap.val();
-                if (idx === null) idx = 0;
-                if (idx < questions.length) displayQuestion(questions[idx]);
+            // подсветка текущей команды
+            const btns = document.querySelectorAll('#changeTeamButtons .team-btn');
+            btns.forEach(btn => {
+                if(parseInt(btn.getAttribute('data-team')) === currentUser.team) btn.classList.add('selected');
+                else btn.classList.remove('selected');
             });
         }
     }
 
-    function displayQuestion(q) {
-        document.getElementById('questionText').innerText = q.text;
-        const optsDiv = document.getElementById('optionsArea');
-        optsDiv.innerHTML = '';
-        q.options.forEach((opt, i) => {
-            const btn = document.createElement('button');
-            btn.innerText = opt;
-            btn.style.display = 'block';
-            btn.style.margin = '10px auto';
-            btn.style.padding = '12px';
-            btn.style.width = '80%';
-            btn.style.background = '#ff4757';
-            btn.style.border = 'none';
-            btn.style.borderRadius = '40px';
-            btn.style.color = 'white';
-            btn.style.fontSize = '18px';
-            btn.onclick = () => answerQuestion(i);
-            optsDiv.appendChild(btn);
-        });
-    }
-
-    function answerQuestion(selected) {
-        if (!gameActive || !db) return;
-        db.ref('currentQuestion').once('value', (snap) => {
-            const qIndex = snap.val();
-            if (qIndex >= questions.length) return;
-            const correct = questions[qIndex].correct;
-            if (selected === correct) {
-                userScore++;
-                document.getElementById('scoreDisplay').innerText = `Счёт: ${userScore}`;
-                if (currentUser && !currentUser.isAdmin) {
-                    db.ref('players/' + currentUser.id + '/score').set(userScore);
-                }
-                alert("✅ Правильно!");
-            } else {
-                alert(`❌ Неправильно. Правильный ответ: ${questions[qIndex].options[correct]}`);
+    function changeTeam(newTeam) {
+        if (!db) return;
+        if (gameActive) {
+            document.getElementById('changeTeamMsg').innerHTML = "❌ Нельзя сменить команду после начала игры!";
+            setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 3000);
+            return;
+        }
+        if (!currentUser || currentUser.isAdmin) return;
+        const teamNum = parseInt(newTeam);
+        db.ref('players/' + currentUser.id).update({ team: teamNum }).then(() => {
+            currentUser.team = teamNum;
+            const saved = localStorage.getItem('quizUser');
+            if (saved) {
+                let u = JSON.parse(saved);
+                u.team = teamNum;
+                localStorage.setItem('quizUser', JSON.stringify(u));
             }
-            setTimeout(() => {
-                db.ref('gameState').once('value', (stateSnap) => {
-                    let state = stateSnap.val();
-                    if (state && state.active && state.currentQuestion < questions.length-1) {
-                        let newIndex = state.currentQuestion + 1;
-                        db.ref('gameState').update({ currentQuestion: newIndex });
-                        db.ref('currentQuestion').set(newIndex);
-                    } else if (state && state.currentQuestion === questions.length-1) {
-                        db.ref('gameState').update({ active: false, currentQuestion: questions.length });
-                        showFinalResults();
-                    }
-                });
-            }, 1500);
-        });
+            document.getElementById('changeTeamMsg').innerHTML = "✅ Команда изменена!";
+            setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 2000);
+        }).catch(err => { console.error(err); });
     }
 
-    function showFinalResults() {
-        document.getElementById('waitingScreen').classList.add('hidden');
-        document.getElementById('quizScreen').classList.add('hidden');
-        document.getElementById('resultScreen').classList.remove('hidden');
-        const changeBlock = document.getElementById('changeTeamBlock');
-        if (changeBlock) changeBlock.classList.add('hidden');
-        if (db) {
-            db.ref('players').once('value', (snap) => {
-                const players = snap.val() || {};
-                let teamsScores = [0,0,0,0];
-                for (let id in players) {
-                    let p = players[id];
-                    if (p && p.team >= 0 && p.team < 4) {
-                        teamsScores[p.team] += (p.score || 0);
-                    }
-                }
-                let html = '<h3>Результаты команд:</h3>';
-                for (let i=0; i<4; i++) {
-                    html += `<div class="team-display">Команда ${i+1}: ${teamsScores[i]} очков</div>`;
-                }
-                document.getElementById('finalResults').innerHTML = html;
-            });
-        }
-    }
-
-    // --- Обработчики кнопок ---
+    // ---------- ОБРАБОТЧИКИ ИНТЕРФЕЙСА ----------
     document.getElementById('joinBtn')?.addEventListener('click', () => {
         const nick = document.getElementById('nickname').value.trim();
+        const selectedTeam = document.querySelector('#loginTeamButtons .team-btn.selected')?.getAttribute('data-team');
         if (!nick) { alert("Введи никнейм"); return; }
-        joinGame(nick, selectedTeamForLogin);
+        if (selectedTeam === undefined) { alert("Выберите команду"); return; }
+        joinGame(nick, selectedTeam);
     });
 
     document.getElementById('adminLoginFromStartBtn')?.addEventListener('click', () => {
         const pwd = prompt("Введите пароль администратора:");
-        if (pwd === "admin123") {
-            adminLogin(pwd);
-        } else if (pwd !== null) {
-            alert("Неверный пароль");
+        if (pwd === "admin123") adminLogin(pwd);
+        else if(pwd !== null) alert("Неверный пароль");
+    });
+
+    document.getElementById('startGameBtn')?.addEventListener('click', () => {
+        if (currentUser && currentUser.isAdmin) startRound(0);
+    });
+
+    document.getElementById('nextRoundBtn')?.addEventListener('click', () => {
+        if (currentUser && currentUser.isAdmin) {
+            if (currentRound + 1 < rounds.length) startRound(currentRound + 1);
+            else showFinalResults();
         }
     });
 
-    // Кнопки команд на экране входа
+    document.getElementById('resetGameBtn')?.addEventListener('click', () => {
+        if (currentUser && currentUser.isAdmin && confirm("Сбросить игру? Все данные удалятся.")) {
+            db.ref('gameState').set({ active: false, currentRound: 0, roundFinished: false });
+            db.ref('players').set(null);
+            localStorage.removeItem('quizUser');
+            location.reload();
+        }
+    });
+
+    document.getElementById('becomeAdminBtn')?.addEventListener('click', () => {
+        const pwd = prompt("Введите пароль администратора:");
+        if (pwd === "admin123") {
+            if (currentUser && !currentUser.isAdmin && db) db.ref('players/' + currentUser.id).remove();
+            adminLogin(pwd);
+        } else if(pwd !== null) alert("Неверный пароль");
+    });
+
+    // Выбор команды на экране входа
     document.querySelectorAll('#loginTeamButtons .team-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            selectedTeamForLogin = parseInt(btn.getAttribute('data-team'));
-            highlightLoginTeam(selectedTeamForLogin);
+            document.querySelectorAll('#loginTeamButtons .team-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
         });
     });
-    // По умолчанию выбрана команда 1
-    selectedTeamForLogin = 0;
-    highlightLoginTeam(0);
-
-    // Кнопки смены команды на экране ожидания
+    // Выбор команды в блоке смены
     document.querySelectorAll('#changeTeamButtons .team-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             if (!gameActive && currentUser && !currentUser.isAdmin) {
-                const newTeam = parseInt(btn.getAttribute('data-team'));
-                changeTeam(newTeam);
+                changeTeam(btn.getAttribute('data-team'));
+                document.querySelectorAll('#changeTeamButtons .team-btn').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
             } else {
                 document.getElementById('changeTeamMsg').innerHTML = "Нельзя сменить команду после старта";
                 setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 2000);
             }
         });
-    });
-
-    // Кнопка "Стать администратором" на экране ожидания
-    document.getElementById('becomeAdminBtn')?.addEventListener('click', () => {
-        const pwd = prompt("Введите пароль администратора:");
-        if (pwd === "admin123") {
-            // Удаляем текущего игрока из базы? Чтобы не было дублей, можно просто удалить запись игрока
-            if (currentUser && !currentUser.isAdmin && db) {
-                db.ref('players/' + currentUser.id).remove();
-            }
-            adminLogin(pwd);
-        } else if (pwd !== null) {
-            alert("Неверный пароль");
-        }
-    });
-
-    // Кнопки админа
-    document.getElementById('startGameBtn')?.addEventListener('click', () => {
-        if (currentUser && currentUser.isAdmin && db) {
-            db.ref('gameState').set({ active: true, currentQuestion: 0 });
-            db.ref('currentQuestion').set(0);
-            db.ref('players').once('value', (snap) => {
-                const players = snap.val();
-                for (let id in players) {
-                    if (id && !id.startsWith('admin_')) {
-                        db.ref('players/' + id + '/score').set(0);
-                    }
-                }
-            });
-            alert("Игра начата!");
-        } else {
-            alert("Вы не админ или база не готова");
-        }
-    });
-
-    document.getElementById('resetGameBtn')?.addEventListener('click', () => {
-        if (currentUser && currentUser.isAdmin && db) {
-            if (confirm("Сбросить игру? Все данные удалятся.")) {
-                db.ref('gameState').set({ active: false, currentQuestion: 0 });
-                db.ref('players').set(null);
-                localStorage.removeItem('quizUser');
-                location.reload();
-            }
-        }
     });
 
     // Восстановление сессии
@@ -628,17 +709,18 @@
                 showGameScreen();
                 document.getElementById('adminPanel').classList.remove('hidden');
                 if (db) {
-                    listenPlayers();
+                    listenPlayersForAdmin();
                     db.ref('gameState').on('value', (snap) => {
                         const state = snap.val();
                         if (state && state.active) {
                             gameActive = true;
-                            currentQuestionIndex = state.currentQuestion;
-                            if (currentQuestionIndex < questions.length) showQuizScreen();
+                            currentRound = state.currentRound;
+                            if (currentRound < rounds.length) showRound(currentRound);
                             else showFinalResults();
                         } else {
                             gameActive = false;
                             showWaitingScreen();
+                            if (currentRound < rounds.length && rounds[currentRound]?.type === "image") listenAllPlayersAnswers();
                         }
                     });
                 }
@@ -647,13 +729,12 @@
                 if (db) {
                     db.ref('players/' + u.id).once('value', (snap) => {
                         if (!snap.exists()) {
-                            db.ref('players/' + u.id).set({ nickname: u.nickname, team: u.team, score: 0 });
+                            db.ref('players/' + u.id).set({ nickname: u.nickname, team: u.team, score: 0, isAdmin: false });
                         }
                     });
                     showGameScreen();
-                    listenGameState();
-                    listenPlayers();
-                    listenQuestions();
+                    listenGameStateForPlayer();
+                    listenPlayersForPlayer();
                 }
             }
         } catch(e) { console.error(e); }
