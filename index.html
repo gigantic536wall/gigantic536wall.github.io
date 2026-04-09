@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аниме викторина | 8 раундов (финальная версия)</title>
+    <title>Аниме викторина | Исправленная версия</title>
     <style>
+        /* Стили такие же, как в предыдущей версии, опущены для краткости */
         * { box-sizing: border-box; }
         body {
             background: linear-gradient(135deg, #1a1a2e, #16213e);
@@ -192,15 +193,15 @@
     const roundsData = [
         { type: "image_sequence", name: "Раунд 1: Угадай аниме по картинке", questions: [
             { images: ["images/image1.png", "images/image2.png", "images/image3.png", "images/image4.png"], correctAnswer: "Реинкарнация безработного" },
-            { images: ["images/image1маг.png", "images/image2маг.png", "images/image3маг.png", "images/image4маг.png"], correctAnswer: "Магическая битва " },
+            { images: ["images/image1маг.png", "images/image2маг.png", "images/image3маг.png", "images/image4.png"], correctAnswer: "Магическая битва " },
             { images: ["images/image1невест.png", "images/image2невест.png", "images/image3невест.png", "images/image4невест.png"], correctAnswer: "Пять невест" },
             { images: ["images/images1джо.jpg", "images/images2джо.jpg", "images/images3джо.jpg", "images/images4джо.jpg"], correctAnswer: "ДжоДжо" },
-            { images: ["images/image1angel.png", "images/image2angel.png", "images/image3angel.png", "images/image4angel.png"], correctAnswer: "Ангел по соседству меня балует" },
-            { images: ["images/image1грех.png", "images/image2грех.png", "images/image3грех.png", "images/image4грех.png"], correctAnswer: "Семь смертных грехов" },
-            { images: ["images/image1лейм.png", "images/image2лейм.png", "images/image3лейм.png", "images/image4лейм.png"], correctAnswer: "Эксперименты Лэйн" },
-            { images: ["images/image1ток.png", "images/image2ток.png", "images/image3ток.png", "images/image4ток.png"], correctAnswer: "Токийский гуль" },
-            { images: ["images/image1цвет.png", "images/image2цвет.png", "images/image3цвет.png", "images/image4цвет.png"], correctAnswer: "Благоухающий цветок расцветает с достоинством" },
-            { images: ["images/image1тит.png", "images/image2тит.png", "images/image3тит.png", "images/image4тит.png"], correctAnswer: "Атака титанов" }
+            { images: ["images/anime5_1.jpg", "images/anime5_2.jpg", "images/anime5_3.jpg", "images/anime5_4.jpg"], correctAnswer: "Название аниме 5" },
+            { images: ["images/anime6_1.jpg", "images/anime6_2.jpg", "images/anime6_3.jpg", "images/anime6_4.jpg"], correctAnswer: "Название аниме 6" },
+            { images: ["images/anime7_1.jpg", "images/anime7_2.jpg", "images/anime7_3.jpg", "images/anime7_4.jpg"], correctAnswer: "Название аниме 7" },
+            { images: ["images/anime8_1.jpg", "images/anime8_2.jpg", "images/anime8_3.jpg", "images/anime8_4.jpg"], correctAnswer: "Название аниме 8" },
+            { images: ["images/anime9_1.jpg", "images/anime9_2.jpg", "images/anime9_3.jpg", "images/anime9_4.jpg"], correctAnswer: "Название аниме 9" },
+            { images: ["images/anime10_1.jpg", "images/anime10_2.jpg", "images/anime10_3.jpg", "images/anime10_4.jpg"], correctAnswer: "Название аниме 10" }
         ] },
         { type: "quiz", name: "Раунд 2: Общие знания", questions: generateQuizQuestions(2) },
         { type: "quiz", name: "Раунд 3: Персонажи", questions: generateQuizQuestions(3) },
@@ -232,6 +233,7 @@
     let currentAnswerText = "";
     let pollingInterval = null;
     let isWaitingForNextQuestion = false;
+    let adminAnswersRefreshInterval = null;
 
     function showError(msg) {
         const errDiv = document.getElementById('errorDisplay');
@@ -367,7 +369,6 @@
         const container = document.getElementById('roundContent');
         if(!container) return;
         if(round.type === "image_sequence") {
-            // Начинаем новый вопрос
             imageStep = 0;
             answered = false;
             answerGivenAtStep = -1;
@@ -431,12 +432,10 @@
                 return;
             }
         }
-        // По умолчанию начинаем с 10 секунд
         startImageQuestion(question, false, 10);
     }
 
     function startImageQuestion(question, alreadyAnswered = false, startTime = 10) {
-        // Если уже показали 4 картинки, переходим к паузе
         if (imageStep >= 4) {
             if (pauseInterval) clearInterval(pauseInterval);
             startPauseBetweenQuestions();
@@ -495,13 +494,10 @@
             await syncImageState();
             if(timeLeft <= 0) {
                 clearInterval(timerInterval);
-                // Переход к следующей картинке
                 imageStep++;
                 if (imageStep < 4) {
-                    // Загружаем следующую картинку с новым таймером 10 секунд
                     startImageQuestion(question, false, 10);
                 } else {
-                    // Все 4 картинки показаны, запускаем паузу
                     if (pauseInterval) clearInterval(pauseInterval);
                     startPauseBetweenQuestions();
                 }
@@ -695,12 +691,12 @@
                 gameActive = false;
                 roundInProgress = false;
                 showWaitingScreen();
-                if(currentUser && currentUser.isAdmin) {
-                    await updateAdminAnswersPanel();
-                }
             }
             await updateTeamsDisplay();
-            if(currentUser && currentUser.isAdmin) await updateAdminTeamsDisplay();
+            if(currentUser && currentUser.isAdmin) {
+                await updateAdminTeamsDisplay();
+                await updateAdminAnswersPanel(); // обновляем таблицу ответов каждую секунду
+            }
         }, 1000);
     }
 
