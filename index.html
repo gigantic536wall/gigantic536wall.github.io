@@ -180,42 +180,32 @@
     // Вам нужно заполнить свои URL картинок в questions[0] (10 вопросов, у каждого images: массив из 4 URL).
     // Для раундов 2-8 тип "quiz" - обычные вопросы с вариантами ответов.
     
-    const roundsData = [
-        {   // Раунд 1: 10 вопросов типа "угадай по картинкам"
-            type: "image_sequence",
-            name: "Раунд 1: Угадай аниме по картинке",
-            questions: [
-                {   // Вопрос 1
-                    images: [
-                        "https://via.placeholder.com/400x300?text=Аниме1_картинка1",
-                        "https://via.placeholder.com/400x300?text=Аниме1_картинка2",
-                        "https://via.placeholder.com/400x300?text=Аниме1_картинка3",
-                        "https://via.placeholder.com/400x300?text=Аниме1_картинка4"
-                    ],
-                    correctAnswer: "Наруто"   // правильный ответ (текст)
-                },
-                // Добавьте ещё 9 вопросов аналогично
-                { images: ["url1","url2","url3","url4"], correctAnswer: "Ван Пис" },
-                { images: ["url1","url2","url3","url4"], correctAnswer: "Атака титанов" },
-                { images: ["url1","url2","url3","url4"], correctAnswer: "Драгон Болл" },
-                { images: ["url1","url2","url3","url4"], correctAnswer: "Токийский гуль" },
-                { images: ["url1","url2","url3","url4"], correctAnswer: "Клинок рассекающий демонов" },
-                { images: ["url1","url2","url3","url4"], correctAnswer: "Моя геройская академия" },
-                { images: ["url1","url2","url3","url4"], correctAnswer: "Реинкарнация безработного" },
-                { images: ["url1","url2","url3","url4"], correctAnswer: "Код Гиас" },
-                { images: ["url1","url2","url3","url4"], correctAnswer: "Магическая битва" }
-            ]
-        },
-        // Раунды 2-8: обычные вопросы (пример, вы можете заменить на свои 10 вопросов в каждом)
-        { type: "quiz", name: "Раунд 2: Общие знания", questions: generateQuizQuestions(2) },
-        { type: "quiz", name: "Раунд 3: Персонажи", questions: generateQuizQuestions(3) },
-        { type: "quiz", name: "Раунд 4: Сюжеты", questions: generateQuizQuestions(4) },
-        { type: "quiz", name: "Раунд 5: Манга", questions: generateQuizQuestions(5) },
-        { type: "quiz", name: "Раунд 6: Студии", questions: generateQuizQuestions(6) },
-        { type: "quiz", name: "Раунд 7: Озвучка", questions: generateQuizQuestions(7) },
-        { type: "quiz", name: "Раунд 8: Финал", questions: generateQuizQuestions(8) }
-    ];
-
+   const roundsData = [
+    {   // Раунд 1: 10 вопросов типа "угадай по картинкам" (проверяет админ)
+        type: "image_sequence",
+        name: "Раунд 1: Угадай аниме по картинке",
+        questions: [
+            { images: ["https://via.placeholder.com/400x300?text=Аниме1_картинка1", "https://via.placeholder.com/400x300?text=Аниме1_картинка2", "https://via.placeholder.com/400x300?text=Аниме1_картинка3", "https://via.placeholder.com/400x300?text=Аниме1_картинка4"] },
+            { images: ["url1","url2","url3","url4"] },
+            { images: ["url1","url2","url3","url4"] },
+            { images: ["url1","url2","url3","url4"] },
+            { images: ["url1","url2","url3","url4"] },
+            { images: ["url1","url2","url3","url4"] },
+            { images: ["url1","url2","url3","url4"] },
+            { images: ["url1","url2","url3","url4"] },
+            { images: ["url1","url2","url3","url4"] },
+            { images: ["url1","url2","url3","url4"] }
+        ]
+    },
+    // Раунды 2-8: обычные вопросы (заполните своими 10 вопросами в каждом)
+    { type: "quiz", name: "Раунд 2: Общие знания", questions: generateQuizQuestions(2) },
+    { type: "quiz", name: "Раунд 3: Персонажи", questions: generateQuizQuestions(3) },
+    { type: "quiz", name: "Раунд 4: Сюжеты", questions: generateQuizQuestions(4) },
+    { type: "quiz", name: "Раунд 5: Манга", questions: generateQuizQuestions(5) },
+    { type: "quiz", name: "Раунд 6: Студии", questions: generateQuizQuestions(6) },
+    { type: "quiz", name: "Раунд 7: Озвучка", questions: generateQuizQuestions(7) },
+    { type: "quiz", name: "Раунд 8: Финал", questions: generateQuizQuestions(8) }
+];
     // Функция-заглушка для генерации 10 обычных вопросов (замените на свои)
     function generateQuizQuestions(roundNum) {
         let qs = [];
