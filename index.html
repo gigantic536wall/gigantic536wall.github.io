@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://*.firebaseio.com https://*.googleapis.com;">
     <title>Аниме викторина | Командная игра</title>
-    <!-- Firebase SDK (старая совместимая версия) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     <style>
@@ -84,6 +84,11 @@
             border-radius: 10px;
             margin: 10px;
         }
+        .change-team-area {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.3);
+        }
     </style>
 </head>
 <body>
@@ -111,6 +116,17 @@
         <div id="waitingScreen">
             <div class="waiting">⏳ Ожидание начала игры...</div>
             <div id="teamsStatus"></div>
+            <!-- Блок смены команды (только для игроков, не админа) -->
+            <div id="changeTeamBlock" class="change-team-area hidden">
+                <select id="newTeamSelect">
+                    <option value="0">Команда 1</option>
+                    <option value="1">Команда 2</option>
+                    <option value="2">Команда 3</option>
+                    <option value="3">Команда 4</option>
+                </select>
+                <button id="changeTeamBtn">Сменить команду</button>
+                <div id="changeTeamMsg" style="font-size:14px; margin-top:5px;"></div>
+            </div>
         </div>
         <div id="quizScreen" class="hidden">
             <div class="question-block">
@@ -154,7 +170,6 @@
         firebase.initializeApp(firebaseConfig);
         db = firebase.database();
         console.log("Firebase инициализирован");
-        // Проверка соединения
         db.ref('.info/connected').on('value', (snap) => {
             console.log("Соединение с Firebase:", snap.val() ? "есть" : "нет");
         });
@@ -193,7 +208,12 @@
                 currentQuestionIndex = state.currentQuestion;
                 if (gameActive && currentQuestionIndex < questions.length) showQuizScreen();
                 else if (gameActive && currentQuestionIndex >= questions.length) showFinalResults();
-                else if (!gameActive && currentUser && !currentUser.isAdmin) showWaitingScreen();
+                else if (!gameActive && currentUser && !currentUser.isAdmin) {
+                    showWaitingScreen();
+                    // Показываем блок смены команды, если игра не активна
+                    const changeBlock = document.getElementById('changeTeamBlock');
+                    if (changeBlock) changeBlock.classList.remove('hidden');
+                }
             } else {
                 db.ref('gameState').set({ active: false, currentQuestion: 0 });
             }
@@ -263,6 +283,37 @@
         });
     }
 
+    // Новая функция для смены команды
+    function changeTeam(newTeam) {
+        if (!db) return;
+        if (gameActive) {
+            document.getElementById('changeTeamMsg').innerText = "❌ Нельзя сменить команду после начала игры!";
+            setTimeout(() => document.getElementById('changeTeamMsg').innerText = "", 3000);
+            return;
+        }
+        if (!currentUser || currentUser.isAdmin) return;
+        const teamNum = parseInt(newTeam);
+        if (isNaN(teamNum)) return;
+        // Обновляем в Firebase
+        db.ref('players/' + currentUser.id).update({
+            team: teamNum
+        }).then(() => {
+            currentUser.team = teamNum;
+            // Обновляем localStorage
+            const saved = localStorage.getItem('quizUser');
+            if (saved) {
+                let u = JSON.parse(saved);
+                u.team = teamNum;
+                localStorage.setItem('quizUser', JSON.stringify(u));
+            }
+            document.getElementById('changeTeamMsg').innerText = "✅ Команда изменена!";
+            setTimeout(() => document.getElementById('changeTeamMsg').innerText = "", 2000);
+        }).catch(err => {
+            console.error(err);
+            document.getElementById('changeTeamMsg').innerText = "❌ Ошибка смены команды";
+        });
+    }
+
     function adminLogin(password) {
         if (password === "admin123") {
             const adminId = "admin_" + Date.now();
@@ -270,7 +321,6 @@
             localStorage.setItem('quizUser', JSON.stringify({ nickname: "Админ", team: -1, id: adminId, isAdmin: true }));
             showGameScreen();
             document.getElementById('adminPanel').classList.remove('hidden');
-            // Подписка для админа
             if (db) {
                 db.ref('gameState').on('value', (snap) => {
                     const state = snap.val();
@@ -299,6 +349,10 @@
             listenGameState();
             listenPlayers();
             listenQuestions();
+            // Покажем блок смены команды, если игра ещё не активна (будет показано в listenGameState)
+        } else if (currentUser.isAdmin) {
+            // Админу не нужна смена команды
+            document.getElementById('changeTeamBlock')?.classList.add('hidden');
         }
     }
 
@@ -306,12 +360,20 @@
         document.getElementById('waitingScreen').classList.remove('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.add('hidden');
+        // Убедимся, что блок смены команды виден для не-админа
+        if (currentUser && !currentUser.isAdmin) {
+            const changeBlock = document.getElementById('changeTeamBlock');
+            if (changeBlock) changeBlock.classList.remove('hidden');
+        }
     }
 
     function showQuizScreen() {
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.remove('hidden');
         document.getElementById('resultScreen').classList.add('hidden');
+        // Скрываем блок смены команды, когда игра идёт
+        const changeBlock = document.getElementById('changeTeamBlock');
+        if (changeBlock) changeBlock.classList.add('hidden');
         if (db) {
             db.ref('currentQuestion').once('value', (snap) => {
                 let idx = snap.val();
@@ -377,6 +439,8 @@
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.remove('hidden');
+        const changeBlock = document.getElementById('changeTeamBlock');
+        if (changeBlock) changeBlock.classList.add('hidden');
         if (db) {
             db.ref('players').once('value', (snap) => {
                 const players = snap.val() || {};
@@ -438,6 +502,17 @@
         const pwd = document.getElementById('adminPassword').value;
         adminLogin(pwd);
     });
+
+    // Кнопка смены команды
+    const changeTeamBtn = document.getElementById('changeTeamBtn');
+    const newTeamSelect = document.getElementById('newTeamSelect');
+    if (changeTeamBtn) {
+        changeTeamBtn.addEventListener('click', () => {
+            if (newTeamSelect) {
+                changeTeam(newTeamSelect.value);
+            }
+        });
+    }
 
     // Восстановление сессии
     const saved = localStorage.getItem('quizUser');
