@@ -97,6 +97,46 @@
         .quiz-option-btn { display: block; width: 80%; margin: 10px auto; background: #ff4757; border: none; border-radius: 40px; color: white; font-size: 18px; padding: 12px; }
         .quiz-option-btn:hover { background: #ff6b81; }
         .progress-info { font-size: 18px; margin-top: 10px; color: #ccc; }
+        
+        /* Модальное окно для правильных ответов */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+        }
+        .modal-content {
+            background: #1a1a2e;
+            margin: 5% auto;
+            padding: 20px;
+            width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            border-radius: 20px;
+            color: white;
+        }
+        .close-modal {
+            float: right;
+            cursor: pointer;
+            font-size: 28px;
+        }
+        .answer-item {
+            border-bottom: 1px solid #ccc;
+            margin: 15px 0;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .answer-item img {
+            width: 150px;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
@@ -151,6 +191,7 @@
         <div id="adminRoundControls">
             <button id="startGameBtn">🚀 СТАРТ ИГРЫ (раунд 1)</button>
             <button id="nextRoundBtn" class="hidden">➡️ Следующий раунд</button>
+            <button id="showAnswersBtn" class="hidden">📋 Показать правильные ответы (раунд 1)</button>
             <button id="resetGameBtn">🔄 Сбросить игру</button>
         </div>
         <div id="adminAnswersPanel"></div>
@@ -176,37 +217,37 @@
     } catch(e) { console.error(e); }
 
     // ---------- ДАННЫЕ РАУНДОВ (8 раундов, в каждом 10 вопросов) ----------
-    // Для первого раунда тип "image_sequence" - каждый вопрос состоит из 4 последовательных картинок.
-    // Вам нужно заполнить свои URL картинок в questions[0] (10 вопросов, у каждого images: массив из 4 URL).
-    // Для раундов 2-8 тип "quiz" - обычные вопросы с вариантами ответов.
-    
-   const roundsData = [
-    {   // Раунд 1: 10 вопросов типа "угадай по картинкам" (проверяет админ)
-        type: "image_sequence",
-        name: "Раунд 1: Угадай аниме по картинке",
-        questions: [
-            { images: ["https://via.placeholder.com/400x300?text=Аниме1_картинка1", "https://via.placeholder.com/400x300?text=Аниме1_картинка2", "https://via.placeholder.com/400x300?text=Аниме1_картинка3", "https://via.placeholder.com/400x300?text=Аниме1_картинка4"] },
-            { images: ["url1","url2","url3","url4"] },
-            { images: ["url1","url2","url3","url4"] },
-            { images: ["url1","url2","url3","url4"] },
-            { images: ["url1","url2","url3","url4"] },
-            { images: ["url1","url2","url3","url4"] },
-            { images: ["url1","url2","url3","url4"] },
-            { images: ["url1","url2","url3","url4"] },
-            { images: ["url1","url2","url3","url4"] },
-            { images: ["url1","url2","url3","url4"] }
-        ]
-    },
-    // Раунды 2-8: обычные вопросы (заполните своими 10 вопросами в каждом)
-    { type: "quiz", name: "Раунд 2: Общие знания", questions: generateQuizQuestions(2) },
-    { type: "quiz", name: "Раунд 3: Персонажи", questions: generateQuizQuestions(3) },
-    { type: "quiz", name: "Раунд 4: Сюжеты", questions: generateQuizQuestions(4) },
-    { type: "quiz", name: "Раунд 5: Манга", questions: generateQuizQuestions(5) },
-    { type: "quiz", name: "Раунд 6: Студии", questions: generateQuizQuestions(6) },
-    { type: "quiz", name: "Раунд 7: Озвучка", questions: generateQuizQuestions(7) },
-    { type: "quiz", name: "Раунд 8: Финал", questions: generateQuizQuestions(8) }
-];
-    // Функция-заглушка для генерации 10 обычных вопросов (замените на свои)
+    // Для первого раунда тип "image_sequence" (проверяет админ)
+    // Замените пути к картинкам на свои (например, "images/anime1_1.jpg")
+    // correctAnswer используется только для отображения админу в модальном окне
+    const roundsData = [
+        {   // Раунд 1: 10 вопросов "угадай по картинкам"
+            type: "image_sequence",
+            name: "Раунд 1: Угадай аниме по картинке",
+            questions: [
+                { images: ["images/anime1_1.jpg", "images/anime1_2.jpg", "images/anime1_3.jpg", "images/anime1_4.jpg"], correctAnswer: "Название аниме 1" },
+                { images: ["images/anime2_1.jpg", "images/anime2_2.jpg", "images/anime2_3.jpg", "images/anime2_4.jpg"], correctAnswer: "Название аниме 2" },
+                { images: ["images/anime3_1.jpg", "images/anime3_2.jpg", "images/anime3_3.jpg", "images/anime3_4.jpg"], correctAnswer: "Название аниме 3" },
+                { images: ["images/anime4_1.jpg", "images/anime4_2.jpg", "images/anime4_3.jpg", "images/anime4_4.jpg"], correctAnswer: "Название аниме 4" },
+                { images: ["images/anime5_1.jpg", "images/anime5_2.jpg", "images/anime5_3.jpg", "images/anime5_4.jpg"], correctAnswer: "Название аниме 5" },
+                { images: ["images/anime6_1.jpg", "images/anime6_2.jpg", "images/anime6_3.jpg", "images/anime6_4.jpg"], correctAnswer: "Название аниме 6" },
+                { images: ["images/anime7_1.jpg", "images/anime7_2.jpg", "images/anime7_3.jpg", "images/anime7_4.jpg"], correctAnswer: "Название аниме 7" },
+                { images: ["images/anime8_1.jpg", "images/anime8_2.jpg", "images/anime8_3.jpg", "images/anime8_4.jpg"], correctAnswer: "Название аниме 8" },
+                { images: ["images/anime9_1.jpg", "images/anime9_2.jpg", "images/anime9_3.jpg", "images/anime9_4.jpg"], correctAnswer: "Название аниме 9" },
+                { images: ["images/anime10_1.jpg", "images/anime10_2.jpg", "images/anime10_3.jpg", "images/anime10_4.jpg"], correctAnswer: "Название аниме 10" }
+            ]
+        },
+        // Раунды 2-8: обычные вопросы (примеры, замените на свои)
+        { type: "quiz", name: "Раунд 2: Общие знания", questions: generateQuizQuestions(2) },
+        { type: "quiz", name: "Раунд 3: Персонажи", questions: generateQuizQuestions(3) },
+        { type: "quiz", name: "Раунд 4: Сюжеты", questions: generateQuizQuestions(4) },
+        { type: "quiz", name: "Раунд 5: Манга", questions: generateQuizQuestions(5) },
+        { type: "quiz", name: "Раунд 6: Студии", questions: generateQuizQuestions(6) },
+        { type: "quiz", name: "Раунд 7: Озвучка", questions: generateQuizQuestions(7) },
+        { type: "quiz", name: "Раунд 8: Финал", questions: generateQuizQuestions(8) }
+    ];
+
+    // Функция-заглушка для генерации 10 обычных вопросов (замените на свои реальные вопросы)
     function generateQuizQuestions(roundNum) {
         let qs = [];
         for(let i=1; i<=10; i++) {
@@ -221,15 +262,16 @@
     }
 
     // Текущее состояние игры
-    let currentRound = 0;          // 0-индекс
-    let currentQuestionIdx = 0;    // вопрос внутри раунда (0..9)
+    let currentRound = 0;
+    let currentQuestionIdx = 0;
     let gameActive = false;
     let roundInProgress = false;
     let currentUser = null;
     let timerInterval = null;
+    let currentQuizTimer = null;
     
     // Для image_sequence раунда
-    let imageStep = 0;              // 0..3 для текущего вопроса
+    let imageStep = 0;
     let answered = false;
     let answerGivenAtStep = -1;
     let userAnswerText = "";
@@ -280,7 +322,6 @@
         if(!container) return;
         
         if(round.type === "image_sequence") {
-            // Сброс состояния для нового вопроса
             imageStep = 0;
             answered = false;
             answerGivenAtStep = -1;
@@ -304,32 +345,29 @@
                 btn.onclick = () => answerQuiz(idx);
                 optsDiv.appendChild(btn);
             });
-            // Таймер 15 секунд для обычного вопроса
             let timeLeft = 15;
             const timerDiv = document.createElement('div');
             timerDiv.className = "timer";
             timerDiv.innerText = timeLeft;
             container.appendChild(timerDiv);
-            const timerInterval = setInterval(() => {
-                if(!gameActive || !roundInProgress) { clearInterval(timerInterval); return; }
+            if(currentQuizTimer) clearInterval(currentQuizTimer);
+            currentQuizTimer = setInterval(() => {
+                if(!gameActive || !roundInProgress) { clearInterval(currentQuizTimer); return; }
                 timeLeft--;
                 if(timerDiv) timerDiv.innerText = timeLeft;
                 if(timeLeft <= 0) {
-                    clearInterval(timerInterval);
+                    clearInterval(currentQuizTimer);
                     if(roundInProgress) {
-                        // Время вышло, не ответил - переходим к следующему вопросу
                         alert("Время вышло!");
                         nextQuestionOrRound();
                     }
                 }
             }, 1000);
-            window.currentQuizTimer = timerInterval;
         }
     }
 
     function startImageQuestion(question) {
         if(imageStep >= 4) {
-            // Все 4 картинки показаны, переходим к следующему вопросу
             nextQuestionOrRound();
             return;
         }
@@ -356,7 +394,6 @@
                 answered = true;
                 answerGivenAtStep = imageStep;
                 userAnswerText = answer;
-                // Сохраняем ответ в Firebase для админа
                 if(currentUser && !currentUser.isAdmin) {
                     const roundAnsRef = db.ref('players/' + currentUser.id + `/roundAnswers/${currentRound}/q${currentQuestionIdx}`);
                     roundAnsRef.set({
@@ -368,7 +405,6 @@
                 }
                 document.getElementById('answerInput').disabled = true;
                 document.getElementById('submitAnswerBtn').disabled = true;
-                // Не останавливаем таймер, просто блокируем ввод
             };
         }
         if(timerInterval) clearInterval(timerInterval);
@@ -379,14 +415,11 @@
             if(timerDiv) timerDiv.innerText = timeLeft;
             if(timeLeft <= 0) {
                 clearInterval(timerInterval);
-                if(!answered) {
-                    // Не ответил - переходим к следующей картинке
-                }
+                if(!answered) { /* ничего не меняется */ }
                 imageStep++;
                 if(imageStep < 4) {
                     startImageQuestion(question);
                 } else {
-                    // Все 4 картинки показаны, переходим к следующему вопросу
                     nextQuestionOrRound();
                 }
             }
@@ -405,7 +438,7 @@
         } else {
             alert(`❌ Неправильно. Правильный ответ: ${question.options[question.correct]}`);
         }
-        if(window.currentQuizTimer) clearInterval(window.currentQuizTimer);
+        if(currentQuizTimer) clearInterval(currentQuizTimer);
         nextQuestionOrRound();
     }
 
@@ -416,7 +449,6 @@
             currentQuestionIdx++;
             showCurrentQuestion();
         } else {
-            // Раунд закончен
             finishRound();
         }
     }
@@ -428,11 +460,12 @@
         document.getElementById('roundContent').innerHTML = `<div class="waiting">⏳ Раунд завершён. Админ проверяет ответы (для 1-го раунда) и начнёт следующий раунд.</div>`;
         if(currentUser && currentUser.isAdmin) {
             document.getElementById('nextRoundBtn').classList.remove('hidden');
+            document.getElementById('showAnswersBtn').classList.remove('hidden'); // показываем кнопку с ответами
             listenAllPlayersAnswers();
         }
     }
 
-    // Админ: отображение ответов игроков для image_sequence раунда
+    // ---------- АДМИН: ОТОБРАЖЕНИЕ ОТВЕТОВ ИГРОКОВ ДЛЯ ПЕРВОГО РАУНДА ----------
     function listenAllPlayersAnswers() {
         if(!db || !currentUser?.isAdmin) return;
         db.ref('players').on('value', (snap) => {
@@ -447,7 +480,8 @@
         const round = roundsData[currentRound];
         if(!gameActive && round.type === "image_sequence") {
             let html = `<h3>Ответы игроков на ${round.name}</h3>`;
-            html += `<table class="admin-answers-table"><tr><th>Игрок</th><th>Команда</th><th>Вопрос</th><th>Ответ дан на картинке №</th><th>Текст ответа</th><th>Действие</th></tr>`;
+            html += `<table class="admin-answers-table">`;
+            html += `<tr><th>Игрок</th><th>Команда</th><th>Вопрос</th><th>Ответ дан на картинке №</th><th>Текст ответа</th><th>Действие</th></tr>`;
             let anyAnswer = false;
             for(let id in players) {
                 const p = players[id];
@@ -458,7 +492,6 @@
                         const ans = answers[qIdx];
                         if(ans && ans.answered) {
                             anyAnswer = true;
-                            const questionData = round.questions[parseInt(qIdx)];
                             const points = [4,3,2,1][ans.step];
                             html += `<tr>
                                 <td>${p.nickname}</td>
@@ -505,7 +538,42 @@
         }
     }
 
-    // Запуск раунда админом
+    // ---------- ПОКАЗАТЬ ПРАВИЛЬНЫЕ ОТВЕТЫ (МОДАЛЬНОЕ ОКНО) ----------
+    function showCorrectAnswers() {
+        const round = roundsData[0];
+        if (!round || round.type !== "image_sequence") return;
+        let modal = document.getElementById('answersModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'answersModal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h2>Правильные ответы: ${round.name}</h2>
+                    <div id="answersList"></div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.querySelector('.close-modal').onclick = () => modal.style.display = 'none';
+            window.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+        }
+        const listDiv = modal.querySelector('#answersList');
+        listDiv.innerHTML = '';
+        round.questions.forEach((q, idx) => {
+            const answerDiv = document.createElement('div');
+            answerDiv.className = 'answer-item';
+            const imgUrl = q.images[0];
+            answerDiv.innerHTML = `
+                <img src="${imgUrl}" alt="Вопрос ${idx+1}">
+                <div><strong>Вопрос ${idx+1}:</strong> ${q.correctAnswer || 'Не указан'}</div>
+            `;
+            listDiv.appendChild(answerDiv);
+        });
+        modal.style.display = 'block';
+    }
+
+    // ---------- ЗАПУСК РАУНДА АДМИНОМ ----------
     function startRound(roundIndex) {
         if(roundIndex >= roundsData.length) {
             alert("Игра завершена!");
@@ -517,6 +585,8 @@
         gameActive = true;
         roundInProgress = true;
         db.ref('gameState').set({ active: true, currentRound: roundIndex, currentQuestion: 0, roundFinished: false });
+        // Скрываем кнопку показа ответов при старте нового раунда
+        document.getElementById('showAnswersBtn')?.classList.add('hidden');
         // Очистить предыдущие ответы для этого раунда
         db.ref('players').once('value', (snap) => {
             const players = snap.val();
@@ -556,7 +626,7 @@
         }
     }
 
-    // ---------- ЛОГИН И АДМИНКА (как ранее) ----------
+    // ---------- ЛОГИН, РЕГИСТРАЦИЯ, АДМИНКА ----------
     function joinGame(nickname, team) {
         if (!db) { showError("База данных не инициализирована"); return; }
         const userId = nickname + "_" + Date.now();
@@ -720,6 +790,8 @@
         }
     });
 
+    document.getElementById('showAnswersBtn')?.addEventListener('click', showCorrectAnswers);
+
     document.getElementById('resetGameBtn')?.addEventListener('click', () => {
         if (currentUser && currentUser.isAdmin && confirm("Сбросить игру? Все данные удалятся.")) {
             db.ref('gameState').set({ active: false, currentRound: 0, currentQuestion: 0, roundFinished: false });
@@ -756,6 +828,7 @@
         });
     });
 
+    // Восстановление сессии
     const saved = localStorage.getItem('quizUser');
     if (saved) {
         try {
