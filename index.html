@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Аниме викторина | 8 раундов (GitHub Pages + REST API)</title>
     <style>
-        /* Все стили как в предыдущей версии, оставлю без изменений для краткости */
         * { box-sizing: border-box; }
         body {
             background: linear-gradient(135deg, #1a1a2e, #16213e);
@@ -38,15 +37,39 @@
             font-weight: bold;
         }
         button:hover { background: #ff6b81; transform: scale(1.02); }
-        .team-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin: 20px 0; }
-        .team-btn { width: 160px; padding: 20px 10px; font-size: 20px; border-radius: 60px; transition: 0.2s; }
+        .team-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .team-btn {
+            width: 160px;
+            padding: 20px 10px;
+            font-size: 20px;
+            border-radius: 60px;
+            transition: 0.2s;
+        }
         .team-btn[data-team="0"] { background: #3498db; }
         .team-btn[data-team="1"] { background: #2ecc71; }
         .team-btn[data-team="2"] { background: #f39c12; }
         .team-btn[data-team="3"] { background: #9b59b6; }
         .team-btn.selected { background: #ff4757; box-shadow: 0 0 15px rgba(255,71,87,0.5); transform: scale(1.02); }
-        .admin-panel { border-top: 2px solid #ff4757; margin-top: 20px; padding-top: 20px; }
-        .team-display { display: inline-block; background: rgba(0,0,0,0.5); margin: 10px; padding: 10px; border-radius: 15px; min-width: 150px; }
+        .admin-panel {
+            border-top: 2px solid #ff4757;
+            margin-top: 20px;
+            padding-top: 20px;
+        }
+        .team-display {
+            display: inline-block;
+            background: rgba(0,0,0,0.5);
+            margin: 10px;
+            padding: 10px;
+            border-radius: 15px;
+            min-width: 150px;
+            vertical-align: top;
+        }
         .waiting { font-size: 24px; color: #ffaa00; }
         .question-block { background: rgba(0,0,0,0.6); border-radius: 20px; padding: 20px; margin-top: 20px; }
         .hidden { display: none; }
@@ -66,6 +89,8 @@
         .close-modal { float: right; cursor: pointer; font-size: 28px; }
         .answer-item { border-bottom: 1px solid #ccc; margin: 15px 0; padding: 10px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
         .answer-item img { width: 150px; border-radius: 10px; }
+        .clear-players-btn { background: #e67e22; margin-left: 10px; }
+        .clear-players-btn:hover { background: #f39c12; }
     </style>
 </head>
 <body>
@@ -93,7 +118,7 @@
         <div id="waitingScreen">
             <div class="waiting">⏳ Ожидание начала игры...</div>
             <div id="teamsStatus"></div>
-            <div id="changeTeamBlock" class="change-team-area hidden">
+            <div id="changeTeamBlock" class="change-team-area">
                 <h3>Выберите команду (можно менять до старта)</h3>
                 <div class="team-buttons" id="changeTeamButtons">
                     <button class="team-btn" data-team="0">Команда 1</button>
@@ -121,6 +146,7 @@
             <button id="startGameBtn">🚀 СТАРТ ИГРЫ (раунд 1)</button>
             <button id="nextRoundBtn" class="hidden">➡️ Следующий раунд</button>
             <button id="showAnswersBtn" class="hidden">📋 Показать правильные ответы (раунд 1)</button>
+            <button id="clearPlayersBtn" class="clear-players-btn">🧹 Очистить всех игроков</button>
             <button id="resetGameBtn">🔄 Сбросить игру</button>
         </div>
         <div id="adminAnswersPanel"></div>
@@ -130,8 +156,7 @@
 <script>
     // ==================== КОНФИГ FIREBASE (REST API) ====================
     const DB_URL = "https://anime-database-7d48e-default-rtdb.europe-west1.firebasedatabase.app";
-    const AUTH_KEY = ""; // не нужен для тестового режима
-
+    
     function restGet(path) {
         return fetch(`${DB_URL}/${path}.json`).then(res => res.json());
     }
@@ -167,7 +192,6 @@
             { images: ["images/anime9_1.jpg", "images/anime9_2.jpg", "images/anime9_3.jpg", "images/anime9_4.jpg"], correctAnswer: "Название аниме 9" },
             { images: ["images/anime10_1.jpg", "images/anime10_2.jpg", "images/anime10_3.jpg", "images/anime10_4.jpg"], correctAnswer: "Название аниме 10" }
         ] },
-        // Остальные раунды (заглушки, замените на свои)
         { type: "quiz", name: "Раунд 2: Общие знания", questions: generateQuizQuestions(2) },
         { type: "quiz", name: "Раунд 3: Персонажи", questions: generateQuizQuestions(3) },
         { type: "quiz", name: "Раунд 4: Сюжеты", questions: generateQuizQuestions(4) },
@@ -194,9 +218,8 @@
     let currentRound = 0, currentQuestionIdx = 0, gameActive = false, roundInProgress = false, currentUser = null;
     let timerInterval = null, currentQuizTimer = null;
     let imageStep = 0, answered = false, answerGivenAtStep = -1, userAnswerText = "", currentQuestionObj = null;
-    let pollingInterval = null; // для опроса состояния игры
+    let pollingInterval = null;
 
-    // Вспомогательные функции
     function showError(msg) {
         const errDiv = document.getElementById('errorDisplay');
         if(errDiv) { errDiv.innerText = msg; errDiv.style.display = 'block'; setTimeout(() => errDiv.style.display = 'none', 5000); }
@@ -236,7 +259,65 @@
         }
     }
 
-    // Отображение текущего вопроса (как раньше, но без Firebase SDK)
+    async function updateAdminAnswersPanel() {
+        const container = document.getElementById('adminAnswersPanel');
+        if(!container) return;
+        const round = roundsData[currentRound];
+        if(!gameActive && round.type === "image_sequence") {
+            const players = await restGet('players') || {};
+            let html = `<h3>Ответы игроков на ${round.name}</h3><table class="admin-answers-table"><tr><th>Игрок</th><th>Команда</th><th>Вопрос</th><th>Картинка №</th><th>Ответ</th><th>Действие</th></tr>`;
+            let anyAnswer = false;
+            for(let id in players) {
+                const p = players[id];
+                if(p.isAdmin || !p.nickname) continue;
+                const answers = p.roundAnswers && p.roundAnswers[currentRound];
+                if(answers) {
+                    for(let qIdx in answers) {
+                        const ans = answers[qIdx];
+                        if(ans && ans.answered) {
+                            anyAnswer = true;
+                            const points = [4,3,2,1][ans.step];
+                            html += `<tr>
+                                <td>${p.nickname}</td>
+                                <td>Команда ${p.team+1}</td>
+                                <td>${parseInt(qIdx)+1}</td>
+                                <td>${ans.step+1}</td>
+                                <td>${ans.answer}</td>
+                                <td><button class="mark-correct" data-player="${id}" data-q="${qIdx}" data-step="${ans.step}">✅ +${points}</button> <button class="mark-wrong" data-player="${id}" data-q="${qIdx}">❌ -1</button></td>
+                            </tr>`;
+                        }
+                    }
+                }
+            }
+            if(!anyAnswer) html += `<tr><td colspan="6">Нет ответов</td></tr>`;
+            html += `</tr>`;
+            container.innerHTML = html;
+            document.querySelectorAll('.mark-correct').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const playerId = btn.getAttribute('data-player');
+                    const qIdx = btn.getAttribute('data-q');
+                    const step = parseInt(btn.getAttribute('data-step'));
+                    const points = [4,3,2,1][step];
+                    await awardPoints(playerId, points);
+                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+                    updateAdminAnswersPanel();
+                });
+            });
+            document.querySelectorAll('.mark-wrong').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const playerId = btn.getAttribute('data-player');
+                    const qIdx = btn.getAttribute('data-q');
+                    await awardPoints(playerId, -1);
+                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+                    updateAdminAnswersPanel();
+                });
+            });
+        } else {
+            container.innerHTML = `<p>Раунд ${round.name} - автоматическая проверка (админ не требуется)</p>`;
+        }
+    }
+
+    // Отображение текущего вопроса
     function showCurrentQuestion() {
         const round = roundsData[currentRound];
         const question = round.questions[currentQuestionIdx];
@@ -367,57 +448,8 @@
             document.getElementById('showAnswersBtn').classList.remove('hidden');
             await updateAdminAnswersPanel();
         }
-    }
-
-    async function updateAdminAnswersPanel() {
-        const container = document.getElementById('adminAnswersPanel');
-        if(!container) return;
-        const round = roundsData[currentRound];
-        if(!gameActive && round.type === "image_sequence") {
-            const players = await restGet('players') || {};
-            let html = `<h3>Ответы игроков на ${round.name}</h3><table class="admin-answers-table"><tr><th>Игрок</th><th>Команда</th><th>Вопрос</th><th>Картинка №</th><th>Ответ</th><th>Действие</th></tr>`;
-            let anyAnswer = false;
-            for(let id in players) {
-                const p = players[id];
-                if(p.isAdmin || !p.nickname) continue;
-                const answers = p.roundAnswers && p.roundAnswers[currentRound];
-                if(answers) {
-                    for(let qIdx in answers) {
-                        const ans = answers[qIdx];
-                        if(ans && ans.answered) {
-                            anyAnswer = true;
-                            const points = [4,3,2,1][ans.step];
-                            html += `<tr><td>${p.nickname}</td><td>Команда ${p.team+1}</td><td>${parseInt(qIdx)+1}</td><td>${ans.step+1}</td><td>${ans.answer}</td><td><button class="mark-correct" data-player="${id}" data-q="${qIdx}" data-step="${ans.step}">✅ +${points}</button> <button class="mark-wrong" data-player="${id}" data-q="${qIdx}">❌ -1</button></td></tr>`;
-                        }
-                    }
-                }
-            }
-            if(!anyAnswer) html += `<tr><td colspan="6">Нет ответов</td></tr>`;
-            html += `</table>`;
-            container.innerHTML = html;
-            document.querySelectorAll('.mark-correct').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const playerId = btn.getAttribute('data-player');
-                    const qIdx = btn.getAttribute('data-q');
-                    const step = parseInt(btn.getAttribute('data-step'));
-                    const points = [4,3,2,1][step];
-                    await awardPoints(playerId, points);
-                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
-                    updateAdminAnswersPanel();
-                });
-            });
-            document.querySelectorAll('.mark-wrong').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const playerId = btn.getAttribute('data-player');
-                    const qIdx = btn.getAttribute('data-q');
-                    await awardPoints(playerId, -1);
-                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
-                    updateAdminAnswersPanel();
-                });
-            });
-        } else {
-            container.innerHTML = `<p>Раунд ${round.name} - автоматическая проверка (админ не требуется)</p>`;
-        }
+        // Показать экран ожидания для игроков
+        showWaitingScreen();
     }
 
     async function startRound(roundIndex) {
@@ -443,6 +475,9 @@
             document.getElementById('nextRoundBtn').classList.add('hidden');
             await updateAdminAnswersPanel();
         }
+        // Скрываем экран ожидания, показываем викторину
+        document.getElementById('waitingScreen').classList.add('hidden');
+        document.getElementById('quizScreen').classList.remove('hidden');
     }
 
     async function showFinalResults() {
@@ -462,7 +497,26 @@
         document.getElementById('finalResults').innerHTML = html;
     }
 
-    // Периодический опрос состояния игры (вместо on('value'))
+    function showWaitingScreen() {
+        document.getElementById('waitingScreen').classList.remove('hidden');
+        document.getElementById('quizScreen').classList.add('hidden');
+        document.getElementById('resultScreen').classList.add('hidden');
+        // Показываем блок смены команды и кнопку "Стать администратором" для игроков
+        if(currentUser && !currentUser.isAdmin) {
+            const changeBlock = document.getElementById('changeTeamBlock');
+            if(changeBlock) changeBlock.classList.remove('hidden');
+            // Подсветить текущую команду
+            const btns = document.querySelectorAll('#changeTeamButtons .team-btn');
+            btns.forEach(btn => {
+                if(parseInt(btn.dataset.team) === currentUser.team) btn.classList.add('selected');
+                else btn.classList.remove('selected');
+            });
+        } else if(currentUser && currentUser.isAdmin) {
+            document.getElementById('changeTeamBlock')?.classList.add('hidden');
+        }
+    }
+
+    // Периодический опрос состояния игры
     function startPolling() {
         if(pollingInterval) clearInterval(pollingInterval);
         pollingInterval = setInterval(async () => {
@@ -495,6 +549,7 @@
         }, 1000);
     }
 
+    // Функции входа
     async function joinGame(nickname, team) {
         const userId = nickname + "_" + Date.now();
         currentUser = { nickname, team: parseInt(team), isAdmin: false, id: userId };
@@ -510,7 +565,9 @@
             localStorage.setItem('quizUser', JSON.stringify({ nickname: "Админ", team: -1, id: adminId, isAdmin: true }));
             showGameScreen();
             document.getElementById('adminPanel').classList.remove('hidden');
-            // подписаться на изменения состояния через polling (уже запущен)
+            startPolling();
+            // Показываем экран ожидания для админа
+            showWaitingScreen();
         } else {
             alert("Неверный пароль");
         }
@@ -520,25 +577,13 @@
         document.getElementById('loginScreen').classList.add('hidden');
         document.getElementById('gameScreen').classList.remove('hidden');
         document.getElementById('playerInfo').innerHTML = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
+        startPolling();
         if(!currentUser.isAdmin) {
-            startPolling();
+            // Показываем экран ожидания для игрока
+            showWaitingScreen();
         } else {
-            startPolling();
             document.getElementById('changeTeamBlock')?.classList.add('hidden');
-        }
-    }
-
-    function showWaitingScreen() {
-        document.getElementById('waitingScreen').classList.remove('hidden');
-        document.getElementById('quizScreen').classList.add('hidden');
-        document.getElementById('resultScreen').classList.add('hidden');
-        if(currentUser && !currentUser.isAdmin) {
-            document.getElementById('changeTeamBlock').classList.remove('hidden');
-            const btns = document.querySelectorAll('#changeTeamButtons .team-btn');
-            btns.forEach(btn => {
-                if(parseInt(btn.dataset.team) === currentUser.team) btn.classList.add('selected');
-                else btn.classList.remove('selected');
-            });
+            showWaitingScreen();
         }
     }
 
@@ -559,6 +604,9 @@
         }
         document.getElementById('changeTeamMsg').innerHTML = "✅ Команда изменена!";
         setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 2000);
+        // обновить отображение
+        await updateTeamsDisplay();
+        if(currentUser && currentUser.isAdmin) await updateAdminTeamsDisplay();
     }
 
     function showCorrectAnswers() {
@@ -586,6 +634,22 @@
         modal.style.display = 'block';
     }
 
+    // Очистка всех игроков (кроме админа)
+    async function clearAllPlayers() {
+        if(!currentUser || !currentUser.isAdmin) return;
+        if(confirm("Вы уверены, что хотите удалить ВСЕХ игроков? Это действие необратимо.")) {
+            const players = await restGet('players') || {};
+            for(let id in players) {
+                if(!players[id].isAdmin) {
+                    await restDelete(`players/${id}`);
+                }
+            }
+            alert("Все игроки удалены.");
+            await updateAdminTeamsDisplay();
+            await updateTeamsDisplay();
+        }
+    }
+
     // Обработчики событий
     document.getElementById('joinBtn')?.addEventListener('click', () => {
         const nick = document.getElementById('nickname').value.trim();
@@ -609,6 +673,7 @@
         }
     });
     document.getElementById('showAnswersBtn')?.addEventListener('click', showCorrectAnswers);
+    document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
     document.getElementById('resetGameBtn')?.addEventListener('click', async () => {
         if(currentUser && currentUser.isAdmin && confirm("Сбросить игру? Все данные удалятся.")) {
             await restPut('gameState', { active: false, currentRound: 0, currentQuestion: 0, roundFinished: false });
@@ -624,12 +689,15 @@
             adminLogin(pwd);
         } else if(pwd) alert("Неверный пароль");
     });
+
+    // Выбор команды на экране входа
     document.querySelectorAll('#loginTeamButtons .team-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('#loginTeamButtons .team-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
         });
     });
+    // Выбор команды в блоке смены
     document.querySelectorAll('#changeTeamButtons .team-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             if(!gameActive && currentUser && !currentUser.isAdmin) {
@@ -642,7 +710,7 @@
             }
         });
     });
-    // Автовыбор первой команды
+    // Автовыбор первой команды на экране входа
     const firstBtn = document.querySelector('#loginTeamButtons .team-btn');
     if(firstBtn) firstBtn.classList.add('selected');
 
@@ -655,11 +723,9 @@
                 currentUser = u;
                 showGameScreen();
                 document.getElementById('adminPanel').classList.remove('hidden');
-                startPolling();
             } else {
                 currentUser = u;
                 showGameScreen();
-                startPolling();
             }
         } catch(e) { console.error(e); }
     }
