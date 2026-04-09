@@ -20,17 +20,17 @@
             min-height: 100vh;
         }
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             background: rgba(255,255,255,0.1);
             border-radius: 20px;
             padding: 20px;
             backdrop-filter: blur(10px);
         }
-        input, select, button {
-            padding: 10px;
+        input, button {
+            padding: 12px 20px;
             margin: 10px;
-            border-radius: 30px;
+            border-radius: 40px;
             border: none;
             font-size: 16px;
         }
@@ -39,25 +39,61 @@
             color: white;
             cursor: pointer;
             transition: 0.3s;
+            font-weight: bold;
         }
         button:hover {
             background: #ff6b81;
             transform: scale(1.02);
         }
+        .team-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .team-btn {
+            width: 160px;
+            padding: 20px 10px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 60px;
+            background: #2c3e66;
+            transition: 0.2s;
+        }
+        .team-btn.selected {
+            background: #ff4757;
+            box-shadow: 0 0 15px rgba(255,71,87,0.5);
+            transform: scale(1.02);
+        }
+        .team-btn:hover {
+            background: #ff6b81;
+        }
+        /* Цвета для разных команд */
+        .team-btn[data-team="0"] { background: #3498db; }
+        .team-btn[data-team="1"] { background: #2ecc71; }
+        .team-btn[data-team="2"] { background: #f39c12; }
+        .team-btn[data-team="3"] { background: #9b59b6; }
+        .team-btn[data-team="0"].selected { background: #2980b9; }
+        .team-btn[data-team="1"].selected { background: #27ae60; }
+        .team-btn[data-team="2"].selected { background: #e67e22; }
+        .team-btn[data-team="3"].selected { background: #8e44ad; }
+
         .admin-panel {
             border-top: 2px solid #ff4757;
             margin-top: 20px;
             padding-top: 20px;
         }
-        .team {
+        .team-display {
             display: inline-block;
             background: rgba(0,0,0,0.5);
             margin: 10px;
             padding: 10px;
             border-radius: 15px;
             min-width: 150px;
+            vertical-align: top;
         }
-        .team h3 {
+        .team-display h3 {
             margin: 0 0 10px 0;
         }
         .waiting {
@@ -85,47 +121,62 @@
             margin: 10px;
         }
         .change-team-area {
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid rgba(255,255,255,0.3);
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid rgba(255,255,255,0.3);
+        }
+        .nickname-input {
+            font-size: 18px;
+            width: 250px;
+        }
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
         }
     </style>
 </head>
 <body>
 <div class="container" id="app">
     <h1>🎌 Аниме викторина</h1>
+    
+    <!-- Экран входа -->
     <div id="loginScreen">
         <h2>Вход в игру</h2>
-        <input type="text" id="nickname" placeholder="Твой никнейм" maxlength="20">
-        <select id="teamSelect">
-            <option value="0">Команда 1</option>
-            <option value="1">Команда 2</option>
-            <option value="2">Команда 3</option>
-            <option value="3">Команда 4</option>
-        </select>
-        <button id="joinBtn">Присоединиться</button>
-        <div id="adminLoginBlock" style="margin-top: 20px;">
-            <input type="password" id="adminPassword" placeholder="Пароль администратора">
-            <button id="adminLoginBtn">Войти как админ</button>
+        <input type="text" id="nickname" class="nickname-input" placeholder="Твой никнейм" maxlength="20">
+        
+        <div class="team-buttons" id="loginTeamButtons">
+            <button class="team-btn" data-team="0">Команда 1</button>
+            <button class="team-btn" data-team="1">Команда 2</button>
+            <button class="team-btn" data-team="2">Команда 3</button>
+            <button class="team-btn" data-team="3">Команда 4</button>
+        </div>
+        
+        <div class="action-buttons">
+            <button id="joinBtn">Присоединиться</button>
+            <button id="adminLoginFromStartBtn">Войти как администратор</button>
         </div>
         <div id="errorDisplay" class="error-message" style="display:none;"></div>
     </div>
 
+    <!-- Экран игры (после входа) -->
     <div id="gameScreen" class="hidden">
         <div id="playerInfo"></div>
         <div id="waitingScreen">
             <div class="waiting">⏳ Ожидание начала игры...</div>
             <div id="teamsStatus"></div>
-            <!-- Блок смены команды (только для игроков, не админа) -->
+            <!-- Блок смены команды (большие кнопки) -->
             <div id="changeTeamBlock" class="change-team-area hidden">
-                <select id="newTeamSelect">
-                    <option value="0">Команда 1</option>
-                    <option value="1">Команда 2</option>
-                    <option value="2">Команда 3</option>
-                    <option value="3">Команда 4</option>
-                </select>
-                <button id="changeTeamBtn">Сменить команду</button>
-                <div id="changeTeamMsg" style="font-size:14px; margin-top:5px;"></div>
+                <h3>Выберите команду (можно менять до старта)</h3>
+                <div class="team-buttons" id="changeTeamButtons">
+                    <button class="team-btn" data-team="0">Команда 1</button>
+                    <button class="team-btn" data-team="1">Команда 2</button>
+                    <button class="team-btn" data-team="2">Команда 3</button>
+                    <button class="team-btn" data-team="3">Команда 4</button>
+                </div>
+                <div id="changeTeamMsg" style="margin-top: 10px;"></div>
+                <button id="becomeAdminBtn" style="background: #3498db; margin-top: 15px;">👑 Стать администратором</button>
             </div>
         </div>
         <div id="quizScreen" class="hidden">
@@ -141,6 +192,7 @@
         </div>
     </div>
 
+    <!-- Панель администратора -->
     <div id="adminPanel" class="hidden admin-panel">
         <h2>🔧 Панель администратора</h2>
         <div id="adminTeamsStatus"></div>
@@ -164,7 +216,6 @@
     };
     console.log("Конфиг:", firebaseConfig);
 
-    // Инициализация Firebase
     let db;
     try {
         firebase.initializeApp(firebaseConfig);
@@ -184,12 +235,35 @@
     let gameActive = false;
     let currentQuestionIndex = 0;
     let userScore = 0;
+    let selectedTeamForLogin = 0;  // для экрана входа
+
     const questions = [
         { text: "Кто главный герой «Наруто»?", options: ["Саске", "Наруто", "Какаши", "Сакура"], correct: 1 },
         { text: "Техника Гоку из «Драгон Болл»?", options: ["Расенган", "Камехамеха", "Гетсуга", "Реактор"], correct: 1 },
         { text: "Где появляется Леви Аккерман?", options: ["Ванпанчмен", "Токийский гуль", "Атака титанов", "Моя геройская академия"], correct: 2 },
         { text: "Автор «Ван Пис»?", options: ["Ода", "Кисимото", "Тогаси", "Кубо"], correct: 0 }
     ];
+
+    // ---- Вспомогательные функции UI для кнопок команд ----
+    function highlightLoginTeam(team) {
+        document.querySelectorAll('#loginTeamButtons .team-btn').forEach(btn => {
+            if (parseInt(btn.getAttribute('data-team')) === team) {
+                btn.classList.add('selected');
+            } else {
+                btn.classList.remove('selected');
+            }
+        });
+    }
+
+    function highlightChangeTeam(team) {
+        document.querySelectorAll('#changeTeamButtons .team-btn').forEach(btn => {
+            if (parseInt(btn.getAttribute('data-team')) === team) {
+                btn.classList.add('selected');
+            } else {
+                btn.classList.remove('selected');
+            }
+        });
+    }
 
     function showError(msg) {
         const errDiv = document.getElementById('errorDisplay');
@@ -210,9 +284,12 @@
                 else if (gameActive && currentQuestionIndex >= questions.length) showFinalResults();
                 else if (!gameActive && currentUser && !currentUser.isAdmin) {
                     showWaitingScreen();
-                    // Показываем блок смены команды, если игра не активна
                     const changeBlock = document.getElementById('changeTeamBlock');
                     if (changeBlock) changeBlock.classList.remove('hidden');
+                    // Подсветить текущую команду в блоке смены
+                    if (currentUser && currentUser.team !== undefined) {
+                        highlightChangeTeam(currentUser.team);
+                    }
                 }
             } else {
                 db.ref('gameState').set({ active: false, currentQuestion: 0 });
@@ -250,7 +327,7 @@
         }
         const container = document.getElementById('teamsStatus');
         if (container) {
-            container.innerHTML = '<h3>Состав команд:</h3>' + teams.map((t, i) => `<div class="team"><h3>Команда ${i+1}</h3><div>${t.join(', ') || 'пусто'}</div></div>`).join('');
+            container.innerHTML = '<h3>Состав команд:</h3>' + teams.map((t, i) => `<div class="team-display"><h3>Команда ${i+1}</h3><div>${t.join(', ') || 'пусто'}</div></div>`).join('');
         }
     }
 
@@ -262,7 +339,7 @@
         }
         const container = document.getElementById('adminTeamsStatus');
         if (container) {
-            container.innerHTML = '<h3>Игроки по командам:</h3>' + teams.map((t, i) => `<div class="team"><strong>Команда ${i+1}</strong>: ${t.join(', ') || 'нет'}</div>`).join('');
+            container.innerHTML = '<h3>Игроки по командам:</h3>' + teams.map((t, i) => `<div class="team-display"><strong>Команда ${i+1}</strong>: ${t.join(', ') || 'нет'}</div>`).join('');
         }
     }
 
@@ -283,34 +360,32 @@
         });
     }
 
-    // Новая функция для смены команды
     function changeTeam(newTeam) {
         if (!db) return;
         if (gameActive) {
-            document.getElementById('changeTeamMsg').innerText = "❌ Нельзя сменить команду после начала игры!";
-            setTimeout(() => document.getElementById('changeTeamMsg').innerText = "", 3000);
+            document.getElementById('changeTeamMsg').innerHTML = "❌ Нельзя сменить команду после начала игры!";
+            setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 3000);
             return;
         }
         if (!currentUser || currentUser.isAdmin) return;
         const teamNum = parseInt(newTeam);
         if (isNaN(teamNum)) return;
-        // Обновляем в Firebase
         db.ref('players/' + currentUser.id).update({
             team: teamNum
         }).then(() => {
             currentUser.team = teamNum;
-            // Обновляем localStorage
             const saved = localStorage.getItem('quizUser');
             if (saved) {
                 let u = JSON.parse(saved);
                 u.team = teamNum;
                 localStorage.setItem('quizUser', JSON.stringify(u));
             }
-            document.getElementById('changeTeamMsg').innerText = "✅ Команда изменена!";
-            setTimeout(() => document.getElementById('changeTeamMsg').innerText = "", 2000);
+            document.getElementById('changeTeamMsg').innerHTML = "✅ Команда изменена!";
+            setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 2000);
+            highlightChangeTeam(teamNum);
         }).catch(err => {
             console.error(err);
-            document.getElementById('changeTeamMsg').innerText = "❌ Ошибка смены команды";
+            document.getElementById('changeTeamMsg').innerHTML = "❌ Ошибка смены команды";
         });
     }
 
@@ -337,21 +412,20 @@
                 listenPlayers();
             }
         } else {
-            alert("Неверный пароль");
+            alert("Неверный пароль администратора");
         }
     }
 
     function showGameScreen() {
         document.getElementById('loginScreen').classList.add('hidden');
         document.getElementById('gameScreen').classList.remove('hidden');
-        document.getElementById('playerInfo').innerText = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
+        document.getElementById('playerInfo').innerHTML = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
         if (!currentUser.isAdmin && db) {
             listenGameState();
             listenPlayers();
             listenQuestions();
-            // Покажем блок смены команды, если игра ещё не активна (будет показано в listenGameState)
+            // Покажем блок смены команды (будет виден, если игра не активна)
         } else if (currentUser.isAdmin) {
-            // Админу не нужна смена команды
             document.getElementById('changeTeamBlock')?.classList.add('hidden');
         }
     }
@@ -360,10 +434,10 @@
         document.getElementById('waitingScreen').classList.remove('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.add('hidden');
-        // Убедимся, что блок смены команды виден для не-админа
         if (currentUser && !currentUser.isAdmin) {
             const changeBlock = document.getElementById('changeTeamBlock');
             if (changeBlock) changeBlock.classList.remove('hidden');
+            highlightChangeTeam(currentUser.team);
         }
     }
 
@@ -371,7 +445,6 @@
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.remove('hidden');
         document.getElementById('resultScreen').classList.add('hidden');
-        // Скрываем блок смены команды, когда игра идёт
         const changeBlock = document.getElementById('changeTeamBlock');
         if (changeBlock) changeBlock.classList.add('hidden');
         if (db) {
@@ -392,12 +465,13 @@
             btn.innerText = opt;
             btn.style.display = 'block';
             btn.style.margin = '10px auto';
-            btn.style.padding = '10px';
+            btn.style.padding = '12px';
             btn.style.width = '80%';
             btn.style.background = '#ff4757';
             btn.style.border = 'none';
-            btn.style.borderRadius = '30px';
+            btn.style.borderRadius = '40px';
             btn.style.color = 'white';
+            btn.style.fontSize = '18px';
             btn.onclick = () => answerQuestion(i);
             optsDiv.appendChild(btn);
         });
@@ -453,12 +527,66 @@
                 }
                 let html = '<h3>Результаты команд:</h3>';
                 for (let i=0; i<4; i++) {
-                    html += `<div class="team">Команда ${i+1}: ${teamsScores[i]} очков</div>`;
+                    html += `<div class="team-display">Команда ${i+1}: ${teamsScores[i]} очков</div>`;
                 }
                 document.getElementById('finalResults').innerHTML = html;
             });
         }
     }
+
+    // --- Обработчики кнопок ---
+    document.getElementById('joinBtn')?.addEventListener('click', () => {
+        const nick = document.getElementById('nickname').value.trim();
+        if (!nick) { alert("Введи никнейм"); return; }
+        joinGame(nick, selectedTeamForLogin);
+    });
+
+    document.getElementById('adminLoginFromStartBtn')?.addEventListener('click', () => {
+        const pwd = prompt("Введите пароль администратора:");
+        if (pwd === "admin123") {
+            adminLogin(pwd);
+        } else if (pwd !== null) {
+            alert("Неверный пароль");
+        }
+    });
+
+    // Кнопки команд на экране входа
+    document.querySelectorAll('#loginTeamButtons .team-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            selectedTeamForLogin = parseInt(btn.getAttribute('data-team'));
+            highlightLoginTeam(selectedTeamForLogin);
+        });
+    });
+    // По умолчанию выбрана команда 1
+    selectedTeamForLogin = 0;
+    highlightLoginTeam(0);
+
+    // Кнопки смены команды на экране ожидания
+    document.querySelectorAll('#changeTeamButtons .team-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!gameActive && currentUser && !currentUser.isAdmin) {
+                const newTeam = parseInt(btn.getAttribute('data-team'));
+                changeTeam(newTeam);
+            } else {
+                document.getElementById('changeTeamMsg').innerHTML = "Нельзя сменить команду после старта";
+                setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 2000);
+            }
+        });
+    });
+
+    // Кнопка "Стать администратором" на экране ожидания
+    document.getElementById('becomeAdminBtn')?.addEventListener('click', () => {
+        const pwd = prompt("Введите пароль администратора:");
+        if (pwd === "admin123") {
+            // Удаляем текущего игрока из базы? Чтобы не было дублей, можно просто удалить запись игрока
+            if (currentUser && !currentUser.isAdmin && db) {
+                db.ref('players/' + currentUser.id).remove();
+            }
+            adminLogin(pwd);
+        } else if (pwd !== null) {
+            alert("Неверный пароль");
+        }
+    });
 
     // Кнопки админа
     document.getElementById('startGameBtn')?.addEventListener('click', () => {
@@ -489,30 +617,6 @@
             }
         }
     });
-
-    // Обработчики входа
-    document.getElementById('joinBtn')?.addEventListener('click', () => {
-        const nick = document.getElementById('nickname').value.trim();
-        const team = document.getElementById('teamSelect').value;
-        if (!nick) { alert("Введи никнейм"); return; }
-        joinGame(nick, team);
-    });
-
-    document.getElementById('adminLoginBtn')?.addEventListener('click', () => {
-        const pwd = document.getElementById('adminPassword').value;
-        adminLogin(pwd);
-    });
-
-    // Кнопка смены команды
-    const changeTeamBtn = document.getElementById('changeTeamBtn');
-    const newTeamSelect = document.getElementById('newTeamSelect');
-    if (changeTeamBtn) {
-        changeTeamBtn.addEventListener('click', () => {
-            if (newTeamSelect) {
-                changeTeam(newTeamSelect.value);
-            }
-        });
-    }
 
     // Восстановление сессии
     const saved = localStorage.getItem('quizUser');
