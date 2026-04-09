@@ -71,6 +71,7 @@
             vertical-align: top;
         }
         .waiting { font-size: 24px; color: #ffaa00; }
+        .pause-timer { font-size: 36px; color: #ffaa00; margin: 20px; }
         .question-block { background: rgba(0,0,0,0.6); border-radius: 20px; padding: 20px; margin-top: 20px; }
         .hidden { display: none; }
         .error-message { color: #ff8888; background: #440000; padding: 10px; border-radius: 10px; margin: 10px; }
@@ -129,6 +130,11 @@
                 <div id="changeTeamMsg"></div>
                 <button id="becomeAdminBtn" style="background: #3498db;">👑 Стать администратором</button>
             </div>
+        </div>
+        <div id="pauseScreen" class="hidden">
+            <div class="waiting">⏸️ Пауза между раундами</div>
+            <div class="pause-timer" id="pauseTimer">15</div>
+            <div id="pauseMessage">Следующий раунд начнётся автоматически...</div>
         </div>
         <div id="quizScreen" class="hidden">
             <div id="roundContent"></div>
@@ -215,8 +221,9 @@
     }
 
     // Состояние
-    let currentRound = 0, currentQuestionIdx = 0, gameActive = false, roundInProgress = false, currentUser = null;
-    let timerInterval = null, currentQuizTimer = null;
+    let currentRound = 0, currentQuestionIdx = 0, gameActive = false, roundInProgress = false, pauseActive = false;
+    let currentUser = null;
+    let timerInterval = null, currentQuizTimer = null, pauseInterval = null;
     let imageStep = 0, answered = false, answerGivenAtStep = -1, userAnswerText = "", currentQuestionObj = null;
     let pollingInterval = null;
 
@@ -290,7 +297,7 @@
                 }
             }
             if(!anyAnswer) html += `<tr><td colspan="6">Нет ответов</td></tr>`;
-            html += `</tr>`;
+            html += `</table>`;
             container.innerHTML = html;
             document.querySelectorAll('.mark-correct').forEach(btn => {
                 btn.addEventListener('click', async () => {
@@ -441,15 +448,55 @@
     async function finishRound() {
         roundInProgress = false;
         gameActive = false;
-        await restPut('gameState', { active: false, currentRound: currentRound, currentQuestion: currentQuestionIdx, roundFinished: true });
-        document.getElementById('roundContent').innerHTML = `<div class="waiting">⏳ Раунд завершён. Админ проверяет ответы (для 1-го раунда) и начнёт следующий раунд.</div>`;
+        // Сохраняем состояние, что раунд завершён
+        await restPut('gameState', { active: false, currentRound: currentRound, currentQuestion: currentQuestionIdx, roundFinished: true, pauseUntil: null });
+        
+        // Показываем экран паузы для всех
+        showPauseScreen();
+        
+        // Если это не последний раунд, запускаем таймер на 15 секунд
+        if(currentRound + 1 < roundsData.length) {
+            startPauseTimer(15);
+        } else {
+            // Если последний раунд, показываем финальные результаты
+            document.getElementById('pauseScreen').classList.add('hidden');
+            showFinalResults();
+        }
+        
         if(currentUser && currentUser.isAdmin) {
             document.getElementById('nextRoundBtn').classList.remove('hidden');
             document.getElementById('showAnswersBtn').classList.remove('hidden');
             await updateAdminAnswersPanel();
         }
-        // Показать экран ожидания для игроков
-        showWaitingScreen();
+    }
+
+    function showPauseScreen() {
+        document.getElementById('waitingScreen').classList.add('hidden');
+        document.getElementById('quizScreen').classList.add('hidden');
+        document.getElementById('pauseScreen').classList.remove('hidden');
+        document.getElementById('resultScreen').classList.add('hidden');
+        pauseActive = true;
+    }
+
+    function startPauseTimer(seconds) {
+        let remaining = seconds;
+        const timerDiv = document.getElementById('pauseTimer');
+        timerDiv.innerText = remaining;
+        if(pauseInterval) clearInterval(pauseInterval);
+        pauseInterval = setInterval(async () => {
+            remaining--;
+            timerDiv.innerText = remaining;
+            if(remaining <= 0) {
+                clearInterval(pauseInterval);
+                pauseActive = false;
+                // Автоматически начать следующий раунд
+                if(currentRound + 1 < roundsData.length) {
+                    await startRound(currentRound + 1);
+                } else {
+                    showFinalResults();
+                }
+            }
+        }, 1000);
     }
 
     async function startRound(roundIndex) {
@@ -458,11 +505,16 @@
             showFinalResults();
             return;
         }
+        // Останавливаем паузу, если она была
+        if(pauseInterval) clearInterval(pauseInterval);
+        pauseActive = false;
+        document.getElementById('pauseScreen').classList.add('hidden');
+        
         currentRound = roundIndex;
         currentQuestionIdx = 0;
         gameActive = true;
         roundInProgress = true;
-        await restPut('gameState', { active: true, currentRound: roundIndex, currentQuestion: 0, roundFinished: false });
+        await restPut('gameState', { active: true, currentRound: roundIndex, currentQuestion: 0, roundFinished: false, pauseUntil: null });
         document.getElementById('showAnswersBtn')?.classList.add('hidden');
         const players = await restGet('players') || {};
         for(let id in players) {
@@ -475,14 +527,15 @@
             document.getElementById('nextRoundBtn').classList.add('hidden');
             await updateAdminAnswersPanel();
         }
-        // Скрываем экран ожидания, показываем викторину
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.remove('hidden');
+        document.getElementById('pauseScreen').classList.add('hidden');
     }
 
     async function showFinalResults() {
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
+        document.getElementById('pauseScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.remove('hidden');
         const players = await restGet('players') || {};
         let teamsScores = [0,0,0,0];
@@ -500,12 +553,11 @@
     function showWaitingScreen() {
         document.getElementById('waitingScreen').classList.remove('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
+        document.getElementById('pauseScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.add('hidden');
-        // Показываем блок смены команды и кнопку "Стать администратором" для игроков
         if(currentUser && !currentUser.isAdmin) {
             const changeBlock = document.getElementById('changeTeamBlock');
             if(changeBlock) changeBlock.classList.remove('hidden');
-            // Подсветить текущую команду
             const btns = document.querySelectorAll('#changeTeamButtons .team-btn');
             btns.forEach(btn => {
                 if(parseInt(btn.dataset.team) === currentUser.team) btn.classList.add('selected');
@@ -521,7 +573,7 @@
         if(pollingInterval) clearInterval(pollingInterval);
         pollingInterval = setInterval(async () => {
             const state = await restGet('gameState');
-            if(state && state.active && !gameActive && !roundInProgress) {
+            if(state && state.active && !gameActive && !roundInProgress && !pauseActive) {
                 // игра началась
                 gameActive = true;
                 roundInProgress = true;
@@ -531,16 +583,16 @@
                     showCurrentQuestion();
                     document.getElementById('quizScreen').classList.remove('hidden');
                     document.getElementById('waitingScreen').classList.add('hidden');
+                    document.getElementById('pauseScreen').classList.add('hidden');
                 } else {
                     showFinalResults();
                 }
-            } else if(state && !state.active && gameActive) {
-                // игра остановлена (раунд завершён)
-                gameActive = false;
-                roundInProgress = false;
-                showWaitingScreen();
-                if(currentUser && currentUser.isAdmin) {
-                    await updateAdminAnswersPanel();
+            } else if(state && !state.active && gameActive && !pauseActive) {
+                // игра остановлена (раунд завершён), но пауза ещё не начата? Начинаем паузу
+                if(currentRound + 1 < roundsData.length && !pauseActive) {
+                    finishRound(); // вызовет показ паузы
+                } else if(currentRound + 1 >= roundsData.length) {
+                    showFinalResults();
                 }
             }
             // обновляем отображение команд
@@ -566,7 +618,6 @@
             showGameScreen();
             document.getElementById('adminPanel').classList.remove('hidden');
             startPolling();
-            // Показываем экран ожидания для админа
             showWaitingScreen();
         } else {
             alert("Неверный пароль");
@@ -579,7 +630,6 @@
         document.getElementById('playerInfo').innerHTML = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
         startPolling();
         if(!currentUser.isAdmin) {
-            // Показываем экран ожидания для игрока
             showWaitingScreen();
         } else {
             document.getElementById('changeTeamBlock')?.classList.add('hidden');
@@ -604,7 +654,6 @@
         }
         document.getElementById('changeTeamMsg').innerHTML = "✅ Команда изменена!";
         setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 2000);
-        // обновить отображение
         await updateTeamsDisplay();
         if(currentUser && currentUser.isAdmin) await updateAdminTeamsDisplay();
     }
@@ -634,7 +683,6 @@
         modal.style.display = 'block';
     }
 
-    // Очистка всех игроков (кроме админа)
     async function clearAllPlayers() {
         if(!currentUser || !currentUser.isAdmin) return;
         if(confirm("Вы уверены, что хотите удалить ВСЕХ игроков? Это действие необратимо.")) {
@@ -666,17 +714,22 @@
     document.getElementById('startGameBtn')?.addEventListener('click', () => {
         if(currentUser && currentUser.isAdmin) startRound(0);
     });
-    document.getElementById('nextRoundBtn')?.addEventListener('click', () => {
+    document.getElementById('nextRoundBtn')?.addEventListener('click', async () => {
         if(currentUser && currentUser.isAdmin) {
-            if(currentRound + 1 < roundsData.length) startRound(currentRound + 1);
-            else showFinalResults();
+            if(pauseInterval) clearInterval(pauseInterval);
+            pauseActive = false;
+            if(currentRound + 1 < roundsData.length) {
+                await startRound(currentRound + 1);
+            } else {
+                showFinalResults();
+            }
         }
     });
     document.getElementById('showAnswersBtn')?.addEventListener('click', showCorrectAnswers);
     document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
     document.getElementById('resetGameBtn')?.addEventListener('click', async () => {
         if(currentUser && currentUser.isAdmin && confirm("Сбросить игру? Все данные удалятся.")) {
-            await restPut('gameState', { active: false, currentRound: 0, currentQuestion: 0, roundFinished: false });
+            await restPut('gameState', { active: false, currentRound: 0, currentQuestion: 0, roundFinished: false, pauseUntil: null });
             await restDelete('players');
             localStorage.removeItem('quizUser');
             location.reload();
@@ -690,14 +743,12 @@
         } else if(pwd) alert("Неверный пароль");
     });
 
-    // Выбор команды на экране входа
     document.querySelectorAll('#loginTeamButtons .team-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('#loginTeamButtons .team-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
         });
     });
-    // Выбор команды в блоке смены
     document.querySelectorAll('#changeTeamButtons .team-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             if(!gameActive && currentUser && !currentUser.isAdmin) {
@@ -710,11 +761,9 @@
             }
         });
     });
-    // Автовыбор первой команды на экране входа
     const firstBtn = document.querySelector('#loginTeamButtons .team-btn');
     if(firstBtn) firstBtn.classList.add('selected');
 
-    // Восстановление сессии
     const saved = localStorage.getItem('quizUser');
     if(saved) {
         try {
