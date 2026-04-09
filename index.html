@@ -94,8 +94,6 @@
         .clear-players-btn:hover { background: #f39c12; }
         .skip-pause-btn { background: #2ecc71; }
         .skip-pause-btn:hover { background: #27ae60; }
-        .reset-to-start-btn { background: #e67e22; }
-        .reset-to-start-btn:hover { background: #f39c12; }
     </style>
 </head>
 <body>
@@ -158,7 +156,6 @@
             <button id="nextRoundBtn" class="hidden">➡️ Следующий раунд</button>
             <button id="showAnswersBtn" class="hidden">📋 Показать правильные ответы (раунд 1)</button>
             <button id="clearPlayersBtn" class="clear-players-btn">🧹 Очистить всех игроков</button>
-            <button id="resetToStartBtn" class="reset-to-start-btn">🔄 Вернуть всех к началу</button>
             <button id="resetGameBtn">🔄 Сбросить игру</button>
         </div>
         <div id="adminAnswersPanel"></div>
@@ -685,41 +682,6 @@
         }, 1000);
     }
 
-    // Функция "Вернуть всех к началу" (сброс прогресса, возврат в режим ожидания)
-    async function resetPlayersToStart() {
-        if(!currentUser || !currentUser.isAdmin) return;
-        if(confirm("Вернуть всех игроков в режим ожидания начала игры? Все текущие очки и ответы будут сброшены.")) {
-            // Останавливаем все таймеры
-            if(timerInterval) clearInterval(timerInterval);
-            if(currentQuizTimer) clearInterval(currentQuizTimer);
-            if(pauseInterval) clearInterval(pauseInterval);
-            gameActive = false;
-            roundInProgress = false;
-            pauseActive = false;
-            // Сбрасываем состояние игры в Firebase
-            await restPut('gameState', { active: false, currentRound: 0, currentQuestion: 0, roundFinished: false });
-            // Очищаем все ответы и очки игроков (но не удаляем самих игроков, оставляем их в командах)
-            const players = await restGet('players') || {};
-            for(let id in players) {
-                if(!players[id].isAdmin) {
-                    // Сбрасываем счёт в 0
-                    await restPatch(`players/${id}`, { score: 0 });
-                    // Удаляем все ответы по раундам
-                    await restDelete(`players/${id}/roundAnswers`);
-                }
-            }
-            // Обновляем интерфейс админа
-            await updateAdminTeamsDisplay();
-            await updateTeamsDisplay();
-            document.getElementById('adminAnswersPanel').innerHTML = "";
-            document.getElementById('nextRoundBtn').classList.add('hidden');
-            document.getElementById('showAnswersBtn').classList.add('hidden');
-            // Возвращаем всех на экран ожидания
-            showWaitingScreen();
-            alert("Все игроки возвращены в режим ожидания. Нажмите 'Старт', чтобы начать игру заново.");
-        }
-    }
-
     async function joinGame(nickname, team) {
         const userId = nickname + "_" + Date.now();
         currentUser = { nickname, team: parseInt(team), isAdmin: false, id: userId };
@@ -843,7 +805,6 @@
     });
     document.getElementById('showAnswersBtn')?.addEventListener('click', showCorrectAnswers);
     document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
-    document.getElementById('resetToStartBtn')?.addEventListener('click', resetPlayersToStart);
     document.getElementById('resetGameBtn')?.addEventListener('click', async () => {
         if(currentUser && currentUser.isAdmin && confirm("Сбросить игру? Все данные удалятся.")) {
             await restPut('gameState', { active: false, currentRound: 0, currentQuestion: 0, roundFinished: false });
