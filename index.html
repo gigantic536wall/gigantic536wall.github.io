@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аниме викторина</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+        }
+        .quiz-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            margin: 0 0 20px 0;
+        }
+        .question {
+            font-size: 24px;
+            margin: 20px 0;
+        }
+        .options button {
+            display: block;
+            width: 80%;
+            margin: 10px auto;
+            padding: 12px;
+            background: #ff4757;
+            border: none;
+            color: white;
+            font-size: 18px;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .options button:hover {
+            background: #ff6b81;
+            transform: scale(1.02);
+        }
+        .next-btn {
+            margin-top: 20px;
+            padding: 10px 30px;
+            background: #1e90ff;
+            border: none;
+            color: white;
+            font-size: 18px;
+            border-radius: 30px;
+            cursor: pointer;
+        }
+        .next-btn:hover {
+            background: #4169e1;
+        }
+        .score {
+            font-size: 20px;
+            margin-top: 20px;
+        }
+        .result {
+            font-size: 28px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="quiz-container">
+        <h1>🎌 Аниме викторина</h1>
+        <div class="question" id="question">Загрузка...</div>
+        <div class="options" id="options"></div>
+        <button class="next-btn" id="nextBtn">Следующий вопрос</button>
+        <div class="score" id="score">Счёт: 0</div>
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        const questions = [
+            {
+                text: "Кто является главным героем аниме «Наруто»?",
+                options: ["Саске Учиха", "Наруто Узумаки", "Какаши Хатаке", "Сакура Харуно"],
+                correct: 1
+            },
+            {
+                text: "Как называется техника Гоку из «Драгон Болл»?",
+                options: ["Расенган", "Камехамеха", "Гетсуга Теншо", "Реактор душ"],
+                correct: 1
+            },
+            {
+                text: "В каком аниме появляется Леви Аккерман?",
+                options: ["Ванпанчмен", "Токийский гуль", "Атака титанов", "Моя геройская академия"],
+                correct: 2
+            },
+            {
+                text: "Кто автор манги «Ван Пис»?",
+                options: ["Эйитиро Ода", "Масаси Кисимото", "Цугуми Ооба", "Харухи Миками"],
+                correct: 0
+            },
+            {
+                text: "Как звали друга Наруто, который стал Хокаге?",
+                options: ["Шикамару", "Киба", "Наруто", "Конокамару"],
+                correct: 2
+            }
+        ];
+
+        let currentQuestion = 0;
+        let score = 0;
+        let answered = false;
+
+        const questionEl = document.getElementById('question');
+        const optionsEl = document.getElementById('options');
+        const nextBtn = document.getElementById('nextBtn');
+        const scoreEl = document.getElementById('score');
+        const resultEl = document.getElementById('result');
+
+        function loadQuestion() {
+            answered = false;
+            const q = questions[currentQuestion];
+            questionEl.textContent = q.text;
+            optionsEl.innerHTML = '';
+            q.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.textContent = opt;
+                btn.onclick = () => checkAnswer(idx);
+                optionsEl.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selected) {
+            if (answered) return;
+            answered = true;
+            const isCorrect = (selected === questions[currentQuestion].correct);
+            if (isCorrect) {
+                score++;
+                scoreEl.textContent = `Счёт: ${score}`;
+                alert('✅ Правильно!');
+            } else {
+                const correctAns = questions[currentQuestion].options[questions[currentQuestion].correct];
+                alert(`❌ Неправильно! Правильный ответ: ${correctAns}`);
+            }
+        }
+
+        function nextQuestion() {
+            if (!answered) {
+                alert('Сначала ответь на вопрос!');
+                return;
+            }
+            currentQuestion++;
+            if (currentQuestion < questions.length) {
+                loadQuestion();
+            } else {
+                questionEl.style.display = 'none';
+                optionsEl.style.display = 'none';
+                nextBtn.style.display = 'none';
+                resultEl.innerHTML = `🎉 Твой результат: ${score} из ${questions.length} 🎉<br><br>✨ Спасибо за игру! ✨`;
+            }
+        }
+
+        nextBtn.onclick = nextQuestion;
+        loadQuestion();
+    </script>
+</body>
+</html>
