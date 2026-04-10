@@ -396,9 +396,14 @@
     // Базовые значения из gameState или по умолчанию
     if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
         imageStep = (state.imageStep >= 4) ? 0 : (state.imageStep || 0);
-        answered = state.answered || false;
-        questionAnswered = state.questionAnswered || false;
-        currentAnswerText = state.answerText || '';
+        if (currentUser?.isAdmin) {
+            answered = state.answered || false;
+            questionAnswered = state.questionAnswered || false;
+            currentAnswerText = state.answerText || '';
+        } else {
+            // Для игрока НЕ перезаписываем currentAnswerText из state, чтобы не потерять ввод
+            // answered и questionAnswered пока оставим как есть, они переопределятся ниже
+        }
     } else {
         imageStep = 0;
         answered = false;
@@ -412,8 +417,9 @@
         if (playerAns.answered) {
             questionAnswered = true;
             answered = true;
-            currentAnswerText = playerAns.answer;
+            currentAnswerText = playerAns.answer; // если ответил, берём сохранённый ответ
         }
+        // Если не ответил, currentAnswerText остаётся тем, что было (введённый текст или пусто)
     }
     
     if (imageStep >= 4) {
@@ -424,6 +430,7 @@
     const startTime = (imageStep === 3) ? 12 : 8;
     startImageQuestion(question, questionAnswered, startTime);
 }
+
     
     
   function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
@@ -775,19 +782,23 @@
                 if (currentUser?.isAdmin) await updateAdminAnswersPanel();
             } 
             // 3. Синхронизация шагов изображений для игроков (если нет паузы)
-         else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
+        else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
     if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
-        // Если шаг изменился, перерисовываем интерфейс
         if (state.imageStep !== imageStep) {
             if (timerInterval) clearInterval(timerInterval);
             imageStep = state.imageStep;
             
-            // Берём базовые значения из gameState
-            answered = state.answered || false;
-            questionAnswered = state.questionAnswered || false;
-            currentAnswerText = state.answerText || '';
+            // Для админа берём значения из gameState, для игрока - нет (чтобы не сбросить ввод)
+            if (currentUser?.isAdmin) {
+                answered = state.answered || false;
+                questionAnswered = state.questionAnswered || false;
+                currentAnswerText = state.answerText || '';
+            } else {
+                // Для игрока не трогаем currentAnswerText (оставляем введённое ранее)
+                // answered и questionAnswered будут переопределены после проверки персонального ответа
+            }
             
-            // 🔥 Проверяем, не ответил ли уже игрок (по его личной записи)
+            // Проверяем, не ответил ли уже игрок (по его личной записи)
             if (!currentUser?.isAdmin) {
                 const playerAns = await getPlayerAnswerForCurrentQuestion();
                 if (playerAns.answered) {
@@ -802,13 +813,12 @@
             const startTime = (imageStep === 3) ? 12 : 8;
             startImageQuestion(question, questionAnswered, startTime);
         } else {
-            // Шаг не изменился, но мог измениться статус ответа (например, игрок только что ответил)
+            // Шаг не изменился, но мог измениться статус ответа
             if (state.questionAnswered !== questionAnswered && !currentUser?.isAdmin) {
                 const playerAns = await getPlayerAnswerForCurrentQuestion();
                 if (playerAns.answered) {
                     questionAnswered = true;
                     answered = true;
-                    // Обновляем интерфейс, если поле ещё не заблокировано
                     const answerInput = document.getElementById('answerInput');
                     const submitBtn = document.getElementById('submitAnswerBtn');
                     if (answerInput && !answerInput.disabled) {
