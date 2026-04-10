@@ -344,16 +344,16 @@
     if(!container) return;
     
     if(round.type === "image_sequence") {
-        // Полный сброс для нового вопроса
-        imageStep = 0; 
-        answered = false; 
-        questionAnswered = false;
-        answerGivenAtStep = -1; 
-        userAnswerText = "";
-        currentAnswerText = "";
-        currentQuestionObj = question;
-        restoreImageState(question);
-    } else {
+    imageStep = 0; 
+    answered = false; 
+    questionAnswered = false;
+    answerGivenAtStep = -1; 
+    userAnswerText = "";
+    currentAnswerText = "";   // очищаем только для нового вопроса
+    currentQuestionObj = question;
+    restoreImageState(question);
+}
+     else {
             container.innerHTML = `
                 <div class="question-block">
                     <h2>${round.name} | Вопрос ${currentQuestionIdx+1} из ${round.questions.length}</h2>
