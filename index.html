@@ -227,62 +227,88 @@
     }
 
     async function updateAdminAnswersPanel() {
-        const container = document.getElementById('adminAnswersPanel');
-        if(!container) return;
-        const round = roundsData[currentRound];
-        if(!gameActive && round.type === "image_sequence") {
-            const players = await restGet('players') || {};
-            let html = `<h3>Ответы игроков на ${round.name}</h3><table class="admin-answers-table"><tr><th>Игрок</th><th>Команда</th><th>Вопрос</th><th>Картинка №</th><th>Ответ</th><th>Действие</th></tr>`;
-            let anyAnswer = false;
-            for(let id in players) {
-                const p = players[id];
-                if(p.isAdmin || !p.nickname) continue;
-                const answers = p.roundAnswers && p.roundAnswers[currentRound];
-                if(answers) {
-                    for(let qIdx in answers) {
-                        const ans = answers[qIdx];
-                        if(ans && ans.answered) {
-                            anyAnswer = true;
-                            const points = [4,3,2,1][ans.step];
-                            html += `<tr>
-                                <td>${p.nickname}</td>
-                                <td>Команда ${p.team+1}</td>
-                                <td>${parseInt(qIdx)+1}</td>
-                                <td>${ans.step+1}</td>
-                                <td>${ans.answer}</td>
-                                <td><button class="mark-correct" data-player="${id}" data-q="${qIdx}" data-step="${ans.step}">✅ +${points}</button> <button class="mark-wrong" data-player="${id}" data-q="${qIdx}">❌ -1</button></td>
-                            </tr>`;
-                        }
+    const container = document.getElementById('adminAnswersPanel');
+    if (!container) return;
+    const round = roundsData[currentRound];
+    if (!gameActive && round.type === "image_sequence") {
+        const players = await restGet('players') || {};
+        let html = `<h3>Ответы игроков на ${round.name}</h3>`;
+        
+        // Блок с правильными ответами для администратора
+        html += `<div style="background: #2c3e50; padding: 12px; border-radius: 10px; margin-bottom: 15px; text-align: left;">`;
+        html += `<strong>✅ Правильные ответы:</strong><br>`;
+        round.questions.forEach((q, idx) => {
+            html += `Вопрос ${idx + 1}: <span style="color: #2ecc71;">${q.correctAnswer}</span><br>`;
+        });
+        html += `</div>`;
+        
+        html += `<table class="admin-answers-table">
+            <tr>
+                <th>Игрок</th>
+                <th>Команда</th>
+                <th>Вопрос</th>
+                <th>Картинка №</th>
+                <th>Ответ игрока</th>
+                <th>Правильный ответ</th>
+                <th>Действие</th>
+            </tr>`;
+        
+        let anyAnswer = false;
+        for (let id in players) {
+            const p = players[id];
+            if (p.isAdmin || !p.nickname) continue;
+            const answers = p.roundAnswers && p.roundAnswers[currentRound];
+            if (answers) {
+                for (let qIdx in answers) {
+                    const ans = answers[qIdx];
+                    if (ans && ans.answered) {
+                        anyAnswer = true;
+                        const points = [4, 3, 2, 1][ans.step];
+                        const correctAns = round.questions[parseInt(qIdx)].correctAnswer || '—';
+                        html += `<tr>
+                            <td>${p.nickname}</td>
+                            <td>Команда ${p.team + 1}</td>
+                            <td>${parseInt(qIdx) + 1}</td>
+                            <td>${ans.step + 1}</td>
+                            <td>${ans.answer}</td>
+                            <td><span style="color: #2ecc71;">${correctAns}</span></td>
+                            <td>
+                                <button class="mark-correct" data-player="${id}" data-q="${qIdx}" data-step="${ans.step}">✅ +${points}</button>
+                                <button class="mark-wrong" data-player="${id}" data-q="${qIdx}">❌ -1</button>
+                            </td>
+                        </tr>`;
                     }
                 }
             }
-            if(!anyAnswer) html += `<tr><td colspan="6">Нет ответов</td></tr>`;
-            html += `</table>`;
-            container.innerHTML = html;
-            document.querySelectorAll('.mark-correct').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const playerId = btn.getAttribute('data-player');
-                    const qIdx = btn.getAttribute('data-q');
-                    const step = parseInt(btn.getAttribute('data-step'));
-                    const points = [4,3,2,1][step];
-                    await awardPoints(playerId, points);
-                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
-                    updateAdminAnswersPanel();
-                });
-            });
-            document.querySelectorAll('.mark-wrong').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const playerId = btn.getAttribute('data-player');
-                    const qIdx = btn.getAttribute('data-q');
-                    await awardPoints(playerId, -1);
-                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
-                    updateAdminAnswersPanel();
-                });
-            });
-        } else {
-            container.innerHTML = `<p>Раунд ${round.name} - автоматическая проверка (админ не требуется)</p>`;
         }
+        if (!anyAnswer) html += `<tr><td colspan="7">Нет ответов</td></tr>`;
+        html += `</table>`;
+        container.innerHTML = html;
+        
+        document.querySelectorAll('.mark-correct').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const playerId = btn.getAttribute('data-player');
+                const qIdx = btn.getAttribute('data-q');
+                const step = parseInt(btn.getAttribute('data-step'));
+                const points = [4, 3, 2, 1][step];
+                await awardPoints(playerId, points);
+                await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+                updateAdminAnswersPanel();
+            });
+        });
+        document.querySelectorAll('.mark-wrong').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const playerId = btn.getAttribute('data-player');
+                const qIdx = btn.getAttribute('data-q');
+                await awardPoints(playerId, -1);
+                await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+                updateAdminAnswersPanel();
+            });
+        });
+    } else {
+        container.innerHTML = `<p>Раунд ${round.name} - автоматическая проверка (админ не требуется)</p>`;
     }
+}
 
 /*    async function syncImageState() {
         if (!gameActive || !roundInProgress || roundsData[currentRound].type !== "image_sequence") return;
