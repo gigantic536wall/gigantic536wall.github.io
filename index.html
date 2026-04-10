@@ -347,7 +347,7 @@
     }
 
     // Отображение текущего вопроса
-    function showCurrentQuestion() {
+   async function showCurrentQuestion() {
         const round = roundsData[currentRound];
         const question = round.questions[currentQuestionIdx];
         const container = document.getElementById('roundContent');
@@ -429,8 +429,9 @@
         }
         const defaultTime = (imageStep === 3) ? 12 : 8;
         startImageQuestion(question, false, defaultTime);
-        if (state.imageStep >= 4) {
-    imageStep = 0;
+      if (state.imageStep !== undefined) {
+    imageStep = state.imageStep;
+    if(imageStep >= 4) imageStep = 0;
 }
     }
 
@@ -595,12 +596,11 @@
     async function finishRound() {
         roundInProgress = false;
         gameActive = false;
-        await restPut('gameState', { 
-    active: false, 
-    currentRound: 0, 
-    currentQuestion: 0, 
-    roundFinished: false,
-    reset: true
+       await restPut('gameState', { 
+    active: false,
+    currentRound: currentRound,
+    currentQuestion: currentQuestionIdx,
+    roundFinished: true
 });
         showWaitingScreen();
         if(currentUser && currentUser.isAdmin) {
@@ -679,6 +679,11 @@
     }
 
     function startPolling() {
+        if(state && state.reset) {
+    localStorage.removeItem('quizUser');
+    location.reload();
+    return;
+}
         if(pollingInterval) clearInterval(pollingInterval);
         pollingInterval = setInterval(async () => {
             const state = await restGet('gameState');
@@ -823,7 +828,13 @@
                 }
             }
             // Сбрасываем gameState в начальное состояние
-            await restPut('gameState', { active: false, currentRound: 0, currentQuestion: 0, roundFinished: false });
+           await restPut('gameState', { 
+    active: false, 
+    currentRound: 0, 
+    currentQuestion: 0, 
+    roundFinished: false,
+    reset: true
+});
             // Очищаем localStorage у текущего пользователя (чтобы при перезагрузке он не восстановил игрока)
             localStorage.removeItem('quizUser');
             // Перезагружаем страницу, чтобы все клиенты получили чистое состояние
