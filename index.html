@@ -414,19 +414,17 @@
     }
     
     const startTime = (imageStep === 3) ? 12 : 8;
+    // Передаём alreadyAnswered = true, если вопрос уже отвечен, чтобы поле осталось заблокированным
     startImageQuestion(question, questionAnswered, startTime);
 }
-
+    
     
   function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
+    // Если уже был ответ, не сбрасываем флаг questionAnswered
     if (!alreadyAnswered) {
         answered = false;
         questionAnswered = false;
         currentAnswerText = '';
-    } else {
-        // Если восстанавливаем состояние, где уже был ответ, блокируем
-        questionAnswered = true;
-        answered = true; // на всякий случай
     }
     
     if (imageStep >= 4) {
@@ -510,11 +508,12 @@
                     imageStep: imageStep,
                     imageTimeLeft: nextTime,
                     answered: false,
-                    questionAnswered: questionAnswered,
+                    questionAnswered: questionAnswered, // сохраняем статус ответа
                     answerText: currentAnswerText
                 });
                 if(imageStep < 4) {
-                    startImageQuestion(question, false, nextTime);
+                    // Если уже был ответ, передаём alreadyAnswered = true, чтобы не сбросить блокировку
+                    startImageQuestion(question, questionAnswered, nextTime);
                 } else {
                     startPauseBetweenQuestions();
                 }
@@ -755,7 +754,7 @@
                         const round = roundsData[currentRound];
                         const question = round.questions[currentQuestionIdx];
                         const startTime = (imageStep === 3) ? 12 : 8;
-                        startImageQuestion(question, false, startTime);
+                        startImageQuestion(question, questionAnswered, startTime);
                     } else {
                         if (state.answered !== answered) {
                             answered = state.answered;
