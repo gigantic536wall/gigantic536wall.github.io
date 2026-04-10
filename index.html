@@ -409,7 +409,11 @@
         return;
     }
     
-    const startTime = (imageStep === 3) ? 12 : 8;
+    // Используем оставшееся время из состояния, если оно есть
+    let startTime = (imageStep === 3) ? 12 : 8;
+    if (state && state.imageTimeLeft !== undefined) {
+        startTime = state.imageTimeLeft;
+    }
     startImageQuestion(question, questionAnswered, startTime);
 }
     
@@ -747,38 +751,29 @@
                 if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
                     // Если изменился шаг (imageStep)
                     if (state.imageStep !== imageStep) {
-                        // Останавливаем старый таймер
                         if (timerInterval) clearInterval(timerInterval);
-                        // Обновляем локальные переменные из состояния
                         imageStep = state.imageStep;
                         answered = state.answered || false;
                         questionAnswered = state.questionAnswered || false;
                         currentAnswerText = state.answerText || '';
-                        // Получаем текущий вопрос
                         const round = roundsData[currentRound];
                         const question = round.questions[currentQuestionIdx];
-                        const startTime = (imageStep === 3) ? 12 : 8;
-                        // Перерисовываем вопрос с сохранением блокировки, если уже был ответ
+                        // Используем оставшееся время из состояния
+                        const startTime = state.imageTimeLeft !== undefined ? state.imageTimeLeft : ((imageStep === 3) ? 12 : 8);
                         startImageQuestion(question, questionAnswered, startTime);
                     } else {
-                        // Шаг не изменился, но могли измениться флаги ответа или текст
+                        // Если флаг ответа изменился, обновляем блокировку полей
                         if (state.questionAnswered !== questionAnswered || state.answerText !== currentAnswerText) {
                             questionAnswered = state.questionAnswered;
                             answered = state.answered;
                             currentAnswerText = state.answerText || '';
-                            
                             const answerInput = document.getElementById('answerInput');
                             const submitBtn = document.getElementById('submitAnswerBtn');
-                            
                             if (answerInput) {
-                                // Обновляем значение поля
                                 if (state.answerText) answerInput.value = state.answerText;
-                                // Блокируем/разблокируем в зависимости от флага
                                 answerInput.disabled = questionAnswered;
                             }
-                            if (submitBtn) {
-                                submitBtn.disabled = questionAnswered;
-                            }
+                            if (submitBtn) submitBtn.disabled = questionAnswered;
                         }
                     }
                 }
