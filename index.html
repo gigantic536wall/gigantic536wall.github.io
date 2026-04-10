@@ -223,6 +223,24 @@
     function showError(msg){ const d=document.getElementById('errorDisplay'); if(d){ d.innerText=msg; d.style.display='block'; setTimeout(()=>d.style.display='none',5000); } }
     async function awardPoints(playerId,delta){ const p=await restGet(`players/${playerId}`); if(p) await restPatch(`players/${playerId}`,{score:(p.score||0)+delta}); }
 
+    
+    async function getPlayerAnswerAndCheckStatus() {
+    if (!currentUser || currentUser.isAdmin) return { answered: false, checked: false, answer: '' };
+    try {
+        const ansPath = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
+        const chkPath = `players/${currentUser.id}/checkedAnswers/${currentRound}/q${currentQuestionIdx}`;
+        const [ans, checked] = await Promise.all([restGet(ansPath), restGet(chkPath)]);
+        return {
+            answered: ans?.answered || false,
+            checked: checked?.checked || false,
+            answer: ans?.answer || ''
+        };
+    } catch (e) {
+        return { answered: false, checked: false, answer: '' };
+    }
+}
+
+    
     async function updateTeamsDisplay() {
         const players = await restGet('players') || {};
         const teams = [[], [], [], []];
@@ -262,6 +280,7 @@
 
     async function updateAdminAnswersPanel() {
         const container = document.getElementById('adminAnswersPanel');
+      
         if (!container) return;
         if (currentRound < 0 || currentRound >= roundsData.length) {
             container.innerHTML = `<p>Ожидание начала раунда...</p>`;
@@ -332,21 +351,23 @@
                     const step = parseInt(btn.getAttribute('data-step'));
                     const points = [4, 3, 2, 1][step];
                     await awardPoints(playerId, points);
-                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
-                    updateAdminTeamsDisplay();
-                    updateAdminAnswersPanel();
+await restPut(`players/${playerId}/checkedAnswers/${currentRound}/${qIdx}`, { checked: true, timestamp: Date.now() });
+await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+updateAdminTeamsDisplay();
+updateAdminAnswersPanel();
                 });
             });
             document.querySelectorAll('.mark-wrong').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const playerId = btn.getAttribute('data-player');
-                    const qIdx = btn.getAttribute('data-q');
-                    await awardPoints(playerId, -1);
-                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
-                    updateAdminTeamsDisplay();
-                    updateAdminAnswersPanel();
-                });
-            });
+    btn.addEventListener('click', async () => {
+        const playerId = btn.getAttribute('data-player');
+        const qIdx = btn.getAttribute('data-q');
+        await awardPoints(playerId, -1);
+        await restPut(`players/${playerId}/checkedAnswers/${currentRound}/${qIdx}`, { checked: true, timestamp: Date.now() });
+        await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+        updateAdminTeamsDisplay();
+        updateAdminAnswersPanel();
+    });
+});
         } else {
             container.innerHTML = `<p>Раунд ${round.name} — автоматическая проверка (админ не требуется)</p>`;
         }
@@ -426,20 +447,20 @@
         }
         
         if (!currentUser?.isAdmin) {
-            const playerAns = await getPlayerAnswerForCurrentQuestion();
-            if (playerAns.answered) {
-                questionAnswered = true;
-                answered = true;
-                currentAnswerText = playerAns.answer;
-            } else {
-                questionAnswered = false;
-                answered = false;
-                const draftKey = `${currentRound}_${currentQuestionIdx}`;
-                if (draftAnswers[draftKey]) {
-                    currentAnswerText = draftAnswers[draftKey];
-                }
-            }
+    const playerAns = await getPlayerAnswerAndCheckStatus();
+    if (playerAns.answered || playerAns.checked) {
+        questionAnswered = true;
+        answered = true;
+        currentAnswerText = playerAns.answer || currentAnswerText;
+    } else {
+        questionAnswered = false;
+        answered = false;
+        const draftKey = `${currentRound}_${currentQuestionIdx}`;
+        if (draftAnswers[draftKey]) {
+            currentAnswerText = draftAnswers[draftKey];
         }
+    }
+}
         
         if (imageStep >= 4) {
             startPauseBetweenQuestions();
@@ -506,6 +527,13 @@
             if(currentAnswerText) answerInput.value = currentAnswerText;
             
             submitBtn.onclick = async () => {
+                   if (!currentUser?.isAdmin) {
+    const status = await getPlayerAnswerAndCheckStatus();
+    if (status.checked || status.answered) {
+        alert("Вы уже ответили или ваш ответ проверен.");
+        return;
+    }
+}
                 if(questionAnswered) return;
                 const answer = answerInput.value.trim();
                 if(answer === "") { alert("Введите ответ"); return; }
@@ -541,6 +569,7 @@
                 if(currentUser?.isAdmin) await updateAdminAnswersPanel();
             };
         }
+     
         
         if(timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(async () => {
@@ -911,20 +940,20 @@
                             }
                             
                             if (!currentUser?.isAdmin) {
-                                const playerAns = await getPlayerAnswerForCurrentQuestion();
-                                if (playerAns.answered) {
-                                    questionAnswered = true;
-                                    answered = true;
-                                    currentAnswerText = playerAns.answer;
-                                } else {
-                                    questionAnswered = false;
-                                    answered = false;
-                                    const draftKey = `${currentRound}_${currentQuestionIdx}`;
-                                    if (draftAnswers[draftKey]) {
-                                        currentAnswerText = draftAnswers[draftKey];
-                                    }
-                                }
-                            }
+    const playerAns = await getPlayerAnswerAndCheckStatus();
+    if (playerAns.answered || playerAns.checked) {
+        questionAnswered = true;
+        answered = true;
+        currentAnswerText = playerAns.answer || currentAnswerText;
+    } else {
+        questionAnswered = false;
+        answered = false;
+        const draftKey = `${currentRound}_${currentQuestionIdx}`;
+        if (draftAnswers[draftKey]) {
+            currentAnswerText = draftAnswers[draftKey];
+        }
+    }
+}
                             
                             const round = roundsData[currentRound];
                             const question = round.questions[currentQuestionIdx];
@@ -932,8 +961,8 @@
                             startImageQuestion(question, questionAnswered, startTime);
                         } else {
                             if (state.questionAnswered !== questionAnswered && !currentUser?.isAdmin) {
-                                const playerAns = await getPlayerAnswerForCurrentQuestion();
-                                if (playerAns.answered) {
+                                const playerAns = await getPlayerAnswerAndCheckStatus();
+                               if (playerAns.answered || playerAns.checked) {
                                     questionAnswered = true;
                                     answered = true;
                                     const answerInput = document.getElementById('answerInput');
@@ -1187,6 +1216,7 @@
         const firstTeam = document.querySelector('#loginTeamButtons .team-btn');
         if(firstTeam) firstTeam.classList.add('selected');
     }
+    
     setupListeners();
 </script>
 </body>
