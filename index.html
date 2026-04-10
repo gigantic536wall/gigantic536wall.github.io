@@ -390,7 +390,7 @@
         }
     }
 
-   async function restoreImageState(question) {
+  async function restoreImageState(question) {
     const state = await restGet('gameState');
     if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
         imageStep = (state.imageStep >= 4) ? 0 : (state.imageStep || 0);
@@ -415,16 +415,14 @@
     
     
   function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
-    // Никогда не сбрасываем questionAnswered, если alreadyAnswered = true
-    if (!alreadyAnswered) {
-        // Только если это новый вопрос (не восстановление с уже данным ответом)
-        answered = false;
-        questionAnswered = false;
-        // currentAnswerText не сбрасываем, если он уже есть и мы переходим на следующий шаг
-    } else {
-        // Восстанавливаем блокировку
+    // Если alreadyAnswered = true, значит ответ уже был дан - блокируем ввод
+    if (alreadyAnswered) {
         questionAnswered = true;
         answered = true;
+    } else {
+        // Новый шаг (если ответа ещё не было)
+        answered = false;
+        questionAnswered = false;
     }
     
     if (imageStep >= 4) {
@@ -436,7 +434,7 @@
     const container = document.getElementById('roundContent');
     const imgUrl = question.images[imageStep];
     const inputDisabled = questionAnswered ? 'disabled' : '';
-    const safeAnswerText = (currentAnswerText || '');
+    const safeAnswerText = (currentAnswerText || '').replace(/"/g, '&quot;');
     
     container.innerHTML = `
         <div class="image-round-container">
@@ -444,7 +442,7 @@
             <div class="timer" id="timer">${timeLeft}</div>
             <img src="${imgUrl}" class="round-image" id="roundImage">
             <div>
-                <input type="text" id="answerInput" class="answer-input" placeholder="Введите название аниме" ${inputDisabled} value="${safeAnswerText.replace(/"/g, '&quot;')}">
+                <input type="text" id="answerInput" class="answer-input" placeholder="Введите название аниме" ${inputDisabled} value="${safeAnswerText}">
                 <button id="submitAnswerBtn" ${inputDisabled}>Ответить</button>
             </div>
             <p>Картинка ${imageStep+1} из 4</p>
@@ -453,7 +451,6 @@
     const answerInput = document.getElementById('answerInput');
     const submitBtn = document.getElementById('submitAnswerBtn');
     
-    // Если поле не заблокировано, разрешаем ввод
     if(!questionAnswered) {
         answerInput.addEventListener('input', (e) => {
             currentAnswerText = e.target.value;
@@ -465,15 +462,28 @@
             const answer = answerInput.value.trim();
             if(answer === "") { alert("Введите ответ"); return; }
             
+            // Блокируем повторный ответ
             answered = true;
             questionAnswered = true;
             answerGivenAtStep = imageStep;
             userAnswerText = answer;
-            currentAnswerText = answer; // сохраняем
+            currentAnswerText = answer;
             
+            // Сохраняем ответ игрока в базе
             if(currentUser && !currentUser.isAdmin) {
                 const path = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
                 await restPut(path, { answered: true, step: imageStep, answer: answer, timestamp: Date.now() });
+                // Также обновим gameState, чтобы админ и другие игроки увидели блокировку
+                await restPut('gameState', {
+                    active: true,
+                    currentRound: currentRound,
+                    currentQuestion: currentQuestionIdx,
+                    imageStep: imageStep,
+                    imageTimeLeft: timeLeft,
+                    answered: true,
+                    questionAnswered: true,
+                    answerText: answer
+                });
             }
             
             if(currentUser?.isAdmin) {
@@ -515,7 +525,7 @@
                     imageStep: imageStep,
                     imageTimeLeft: nextTime,
                     answered: false,
-                    questionAnswered: questionAnswered,   // сохраняем блокировку
+                    questionAnswered: questionAnswered,
                     answerText: currentAnswerText
                 });
                 if(imageStep < 4) {
@@ -749,9 +759,8 @@
                 if (currentUser?.isAdmin) await updateAdminAnswersPanel();
             } 
             // 3. Синхронизация шагов изображений для игроков (если нет паузы)
-          else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
+         else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
     if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
-        // Синхронизация шага
         if (state.imageStep !== imageStep) {
             if (timerInterval) clearInterval(timerInterval);
             imageStep = state.imageStep;
@@ -763,7 +772,6 @@
             const startTime = (imageStep === 3) ? 12 : 8;
             startImageQuestion(question, questionAnswered, startTime);
         } else {
-            // Обновление блокировки и текста без смены шага
             if (state.questionAnswered !== questionAnswered) {
                 questionAnswered = state.questionAnswered;
                 answered = state.answered;
