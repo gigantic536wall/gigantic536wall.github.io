@@ -352,6 +352,15 @@
         const question = round.questions[currentQuestionIdx];
         const container = document.getElementById('roundContent');
         if(!container) return;
+        await restPut('gameState', {
+    active: true,
+    currentRound: currentRound,
+    currentQuestion: currentQuestionIdx,
+    imageStep: 0,
+    imageTimeLeft: 8,
+    answered: false,
+    answerText: ""
+});
         if(round.type === "image_sequence") {
             imageStep = 0; answered = false; answerGivenAtStep = -1; userAnswerText = "";
             currentAnswerText = "";
@@ -397,6 +406,11 @@
 
     async function restoreImageState(question) {
         const state = await restGet('gameState');
+        if(state && state.reset) {
+    localStorage.removeItem('quizUser');
+    location.reload();
+    return;
+}
         if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
             if (state.imageStep !== undefined) imageStep = state.imageStep;
             if (state.answered !== undefined) answered = state.answered;
@@ -415,9 +429,15 @@
         }
         const defaultTime = (imageStep === 3) ? 12 : 8;
         startImageQuestion(question, false, defaultTime);
+        if (state.imageStep >= 4) {
+    imageStep = 0;
+}
     }
 
     function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
+        if (imageStep > 3) {
+    imageStep = 0;
+}
         if (imageStep >= 4) {
             startPauseBetweenQuestions();
             return;
@@ -575,7 +595,13 @@
     async function finishRound() {
         roundInProgress = false;
         gameActive = false;
-        await restPut('gameState', { active: false, currentRound: currentRound, currentQuestion: currentQuestionIdx, roundFinished: true });
+        await restPut('gameState', { 
+    active: false, 
+    currentRound: 0, 
+    currentQuestion: 0, 
+    roundFinished: false,
+    reset: true
+});
         showWaitingScreen();
         if(currentUser && currentUser.isAdmin) {
             document.getElementById('nextRoundBtn').classList.remove('hidden');
