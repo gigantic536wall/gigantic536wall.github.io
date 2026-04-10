@@ -172,18 +172,18 @@
     async function restDelete(p) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'DELETE'}); if(!r.ok) throw new Error(`DELETE ${p} ${r.status}`); return r.json(); }
 
     // ==================== ДАННЫЕ ИГРЫ ====================
-    const roundsData = [
+  const roundsData = [
         { type: "image_sequence", name: "Раунд 1: Угадай аниме по картинке", questions: [
-            { images: ["images/image1.png","images/image2.png","images/image3.png","images/image4.png"], correctAnswer: "Реинкарнация безработного" },
-            { images: ["images/image1маг.png","images/image2маг.png","images/image3маг.png","images/image4.png"], correctAnswer: "Магическая битва " },
-            { images: ["images/image1невест.png","images/image2невест.png","images/image3невест.png","images/image4невест.png"], correctAnswer: "Пять невест" },
-            { images: ["images/images1джо.jpg","images/images2джо.jpg","images/images3джо.jpg","images/images4джо.jpg"], correctAnswer: "ДжоДжо" },
-            { images: ["images/anime5_1.jpg","images/anime5_2.jpg","images/anime5_3.jpg","images/anime5_4.jpg"], correctAnswer: "Название аниме 5" },
-            { images: ["images/anime6_1.jpg","images/anime6_2.jpg","images/anime6_3.jpg","images/anime6_4.jpg"], correctAnswer: "Название аниме 6" },
-            { images: ["images/anime7_1.jpg","images/anime7_2.jpg","images/anime7_3.jpg","images/anime7_4.jpg"], correctAnswer: "Название аниме 7" },
-            { images: ["images/anime8_1.jpg","images/anime8_2.jpg","images/anime8_3.jpg","images/anime8_4.jpg"], correctAnswer: "Название аниме 8" },
-            { images: ["images/anime9_1.jpg","images/anime9_2.jpg","images/anime9_3.jpg","images/anime9_4.jpg"], correctAnswer: "Название аниме 9" },
-            { images: ["images/anime10_1.jpg","images/anime10_2.jpg","images/anime10_3.jpg","images/anime10_4.jpg"], correctAnswer: "Название аниме 10" }
+            { images: ["images/image1.png", "images/image2.png", "images/image3.png", "images/image4.png"], correctAnswer: "Реинкарнация безработного" },
+            { images: ["images/image1маг.png", "images/image2маг.png", "images/image3маг.png", "images/image4маг.png"], correctAnswer: "Магическая битва " },
+            { images: ["images/image1невест.png", "images/image2невест.png", "images/image3невест.png", "images/image4невест.png"], correctAnswer: "Пять невест" },
+            { images: ["images/images1джо.jpg", "images/images2джо.jpg", "images/images3джо.jpg", "images/images4джо.jpg"], correctAnswer: "ДжоДжо" },
+            { images: ["images/image1angel.png", "images/image2angel.png", "images/image3angel.png", "images/image4angel.png"], correctAnswer: "Ангел по соседству меня балует" },
+            { images: ["images/image1грех.png", "images/image2грех.png", "images/image3грех.png", "images/image4грех.png"], correctAnswer: "Семь смертных грехов" },
+            { images: ["images/image1лейм.png", "images/image2лейм.png", "images/image3лейм.png", "images/image4лейм.png"], correctAnswer: "Эксперименты Лэйн" },
+            { images: ["images/image1ток.png", "images/image2ток.png", "images/image3ток.png", "images/image4ток.png"], correctAnswer: "Токийский гуль" },
+            { images: ["images/image1цвет.png", "images/image2цвет.png", "images/image3цвет.png", "images/image4цвет.png"], correctAnswer: "Благоухающий цветок расцветает с достоинством" },
+            { images: ["images/image1тит.png", "images/image2тит.png", "images/image3тит.png", "images/image4тит.png"], correctAnswer: "Атака титанов" }
         ] },
         ...Array.from({length:7},(_,i)=> ({ type:"quiz", name:`Раунд ${i+2}: ${["Общие знания","Персонажи","Сюжеты","Манга","Студии","Озвучка","Финал"][i]}`, questions: generateQuizQuestions(i+2) }))
     ];
