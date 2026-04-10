@@ -267,11 +267,13 @@
                     if (ans && ans.answered) {
                         anyAnswer = true;
                         const points = [4, 3, 2, 1][ans.step];
-                        const correctAns = round.questions[parseInt(qIdx)].correctAnswer || '—';
+                        // Извлекаем номер вопроса из ключа "q0", "q1" ...
+                        const questionIndex = parseInt(qIdx.replace(/\D/g, '')) || 0;
+                        const correctAns = round.questions[questionIndex]?.correctAnswer || '—';
                         html += `<tr>
                             <td>${p.nickname}</td>
                             <td>Команда ${p.team + 1}</td>
-                            <td>${parseInt(qIdx) + 1}</td>
+                            <td>${questionIndex + 1}</td>
                             <td>${ans.step + 1}</td>
                             <td>${ans.answer}</td>
                             <td><span style="color: #2ecc71;">${correctAns}</span></td>
@@ -399,6 +401,7 @@
     } else {
         imageStep = 0;
         answered = false;
+        questionAnswered = false;
         currentAnswerText = '';
     }
     
@@ -407,7 +410,6 @@
         return;
     }
     
-    // ВСЕГДА начинаем с полного времени для данного шага
     const startTime = (imageStep === 3) ? 12 : 8;
     startImageQuestion(question, false, startTime);
 }
@@ -415,6 +417,7 @@
   function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
     if (!alreadyAnswered) {
         answered = false;
+        questionAnswered = false;  // ← сброс при новом шаге
         currentAnswerText = '';
     }
     
@@ -808,14 +811,14 @@
             }
 
           // 5. Обновление отображения команд и ответов
-            await updateTeamsDisplay();
-            if (currentUser?.isAdmin) {
-                await updateAdminTeamsDisplay();
-                // Обновляем таблицу ответов в реальном времени для раунда с картинками
-                if (roundsData[currentRound]?.type === "image_sequence") {
-                    await updateAdminAnswersPanel();
-                }
-            }
+            // 5. Обновление отображения команд и ответов
+await updateTeamsDisplay();
+if (currentUser?.isAdmin) {
+    await updateAdminTeamsDisplay();
+    if (roundsData[currentRound]?.type === "image_sequence" && currentRound >= 0 && currentRound < roundsData.length) {
+        await updateAdminAnswersPanel();
+    }
+}
         } catch (e) { 
             console.warn("⚠️ Ошибка опроса Firebase:", e); 
         }
