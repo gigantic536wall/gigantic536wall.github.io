@@ -94,6 +94,24 @@
         .clear-players-btn:hover { background: #f39c12; }
         .skip-pause-btn { background: #2ecc71; }
         .skip-pause-btn:hover { background: #27ae60; }
+        .answers-review-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .answers-review-container img {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 15px;
+        }
+        .correct-answer-big {
+            font-size: 36px;
+            color: #2ecc71;
+            margin: 30px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -142,6 +160,9 @@
         <div id="quizScreen" class="hidden">
             <div id="roundContent"></div>
         </div>
+        <div id="answersReviewScreen" class="hidden">
+            <div id="answersReviewContent"></div>
+        </div>
         <div id="resultScreen" class="hidden">
             <h2>Игра окончена!</h2>
             <div id="finalResults"></div>
@@ -154,7 +175,7 @@
         <div id="adminRoundControls">
             <button id="startGameBtn">🚀 СТАРТ ИГРЫ (раунд 1)</button>
             <button id="nextRoundBtn" class="hidden">➡️ Следующий раунд</button>
-            <button id="showAnswersBtn" class="hidden">📋 Показать правильные ответы (раунд 1)</button>
+            <button id="showAnswersBtn" class="hidden">📋 Показать ответы раунда (слайд-шоу)</button>
             <button id="clearPlayersBtn" class="clear-players-btn">🧹 Очистить всех игроков</button>
             <button id="resetGameBtn">🔄 Сбросить игру</button>
         </div>
@@ -195,7 +216,8 @@
     let pollingInterval=null, isWaitingForNextQuestion=false;
     let sessionRestored = false;
     let questionAnswered = false;
-    let draftAnswers = {}; // Хранилище неотправленных текстов
+    let draftAnswers = {};
+    let reviewTimerInterval = null;
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
     function showError(msg){ const d=document.getElementById('errorDisplay'); if(d){ d.innerText=msg; d.style.display='block'; setTimeout(()=>d.style.display='none',5000); } }
@@ -317,28 +339,26 @@
         }
     }
 
-   function showCurrentQuestion() {
-    if (timerInterval) clearInterval(timerInterval);
-    if (currentQuizTimer) clearInterval(currentQuizTimer);
-    
-    const round = roundsData[currentRound];
-    const question = round.questions[currentQuestionIdx];
-    const container = document.getElementById('roundContent');
-    if(!container) return;
-    
-    if(round.type === "image_sequence") {
-        // 🔥 Полный сброс флагов ответа для нового вопроса
-        imageStep = 0; 
-        answerGivenAtStep = -1; 
-        userAnswerText = "";
-        answered = false;
-        questionAnswered = false;
-        currentAnswerText = "";
-        // Удаляем черновик, если он был
-        delete draftAnswers[`${currentRound}_${currentQuestionIdx}`];
-        currentQuestionObj = question;
-        restoreImageState(question);
-    } else {
+    function showCurrentQuestion() {
+        if (timerInterval) clearInterval(timerInterval);
+        if (currentQuizTimer) clearInterval(currentQuizTimer);
+        
+        const round = roundsData[currentRound];
+        const question = round.questions[currentQuestionIdx];
+        const container = document.getElementById('roundContent');
+        if(!container) return;
+        
+        if(round.type === "image_sequence") {
+            imageStep = 0; 
+            answerGivenAtStep = -1; 
+            userAnswerText = "";
+            answered = false;
+            questionAnswered = false;
+            currentAnswerText = "";
+            delete draftAnswers[`${currentRound}_${currentQuestionIdx}`];
+            currentQuestionObj = question;
+            restoreImageState(question);
+        } else {
             container.innerHTML = `
                 <div class="question-block">
                     <h2>${round.name} | Вопрос ${currentQuestionIdx+1} из ${round.questions.length}</h2>
@@ -376,48 +396,46 @@
     }
 
     async function restoreImageState(question) {
-    const state = await restGet('gameState');
-    
-    if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
-        imageStep = (state.imageStep >= 4) ? 0 : (state.imageStep || 0);
-        if (currentUser?.isAdmin) {
-            answered = state.answered || false;
-            questionAnswered = state.questionAnswered || false;
-            currentAnswerText = state.answerText || '';
-        }
-    } else {
-        imageStep = 0;
-        answered = false;
-        questionAnswered = false;
-        currentAnswerText = '';
-    }
-    
-    if (!currentUser?.isAdmin) {
-        const playerAns = await getPlayerAnswerForCurrentQuestion();
-        if (playerAns.answered) {
-            questionAnswered = true;
-            answered = true;
-            currentAnswerText = playerAns.answer;
+        const state = await restGet('gameState');
+        
+        if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
+            imageStep = (state.imageStep >= 4) ? 0 : (state.imageStep || 0);
+            if (currentUser?.isAdmin) {
+                answered = state.answered || false;
+                questionAnswered = state.questionAnswered || false;
+                currentAnswerText = state.answerText || '';
+            }
         } else {
-            // 🔥 Явно гарантируем сброс флагов, если ответа нет
-            questionAnswered = false;
+            imageStep = 0;
             answered = false;
-            // Восстанавливаем черновик
-            const draftKey = `${currentRound}_${currentQuestionIdx}`;
-            if (draftAnswers[draftKey]) {
-                currentAnswerText = draftAnswers[draftKey];
+            questionAnswered = false;
+            currentAnswerText = '';
+        }
+        
+        if (!currentUser?.isAdmin) {
+            const playerAns = await getPlayerAnswerForCurrentQuestion();
+            if (playerAns.answered) {
+                questionAnswered = true;
+                answered = true;
+                currentAnswerText = playerAns.answer;
+            } else {
+                questionAnswered = false;
+                answered = false;
+                const draftKey = `${currentRound}_${currentQuestionIdx}`;
+                if (draftAnswers[draftKey]) {
+                    currentAnswerText = draftAnswers[draftKey];
+                }
             }
         }
+        
+        if (imageStep >= 4) {
+            startPauseBetweenQuestions();
+            return;
+        }
+        
+        const startTime = (imageStep === 3) ? 12 : 8;
+        startImageQuestion(question, questionAnswered, startTime);
     }
-    
-    if (imageStep >= 4) {
-        startPauseBetweenQuestions();
-        return;
-    }
-    
-    const startTime = (imageStep === 3) ? 12 : 8;
-    startImageQuestion(question, questionAnswered, startTime);
-}
 
     function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
         if (!alreadyAnswered) {
@@ -659,59 +677,117 @@
         }
     }
 
-   async function startRound(roundIndex) {
-    if(roundIndex >= roundsData.length) {
-        alert("Игра завершена!");
-        showFinalResults();
-        return;
+    async function startRound(roundIndex) {
+        if(roundIndex >= roundsData.length) {
+            alert("Игра завершена!");
+            showFinalResults();
+            return;
+        }
+        if(pauseInterval) clearInterval(pauseInterval);
+        pauseActive = false;
+        isWaitingForNextQuestion = false;
+        document.getElementById('pauseScreen').classList.add('hidden');
+        currentRound = roundIndex;
+        currentQuestionIdx = 0;
+        gameActive = true;
+        roundInProgress = true;
+        
+        answered = false;
+        questionAnswered = false;
+        currentAnswerText = "";
+        imageStep = 0;
+        draftAnswers = {};
+        
+        await restPut('gameState', {
+            active: true,
+            currentRound: roundIndex,
+            currentQuestion: 0,
+            roundFinished: false,
+            imageStep: 0,
+            imageTimeLeft: 8,
+            answered: false
+        });
+        
+        document.getElementById('showAnswersBtn')?.classList.add('hidden');
+        const players = await restGet('players') || {};
+        for(let id in players) {
+            if(!players[id].isAdmin) {
+                await restDelete(`players/${id}/roundAnswers/${roundIndex}`);
+            }
+        }
+        showCurrentQuestion();
+        if(currentUser && currentUser.isAdmin) {
+            document.getElementById('nextRoundBtn').classList.add('hidden');
+            await updateAdminAnswersPanel();
+        }
+        document.getElementById('waitingScreen').classList.add('hidden');
+        document.getElementById('quizScreen').classList.remove('hidden');
+        document.getElementById('pauseScreen').classList.add('hidden');
     }
-    if(pauseInterval) clearInterval(pauseInterval);
-    pauseActive = false;
-    isWaitingForNextQuestion = false;
-    document.getElementById('pauseScreen').classList.add('hidden');
-    currentRound = roundIndex;
-    currentQuestionIdx = 0;
-    gameActive = true;
-    roundInProgress = true;
-    
-    // 🔥 Сброс всех состояний ответа при старте нового раунда
-    answered = false;
-    questionAnswered = false;
-    currentAnswerText = "";
-    imageStep = 0;
-    draftAnswers = {}; // очищаем черновики
-    
-    await restPut('gameState', {
-        active: true,
-        currentRound: roundIndex,
-        currentQuestion: 0,
-        roundFinished: false,
-        imageStep: 0,
-        imageTimeLeft: 8,
-        answered: false
-    });
-    
-    document.getElementById('showAnswersBtn')?.classList.add('hidden');
-    const players = await restGet('players') || {};
-    for(let id in players) {
-        if(!players[id].isAdmin) {
-            await restDelete(`players/${id}/roundAnswers/${roundIndex}`);
+
+    // ========== НОВЫЙ ФУНКЦИОНАЛ ПОКАЗА ОТВЕТОВ ==========
+    async function startAnswersReview() {
+        if (!currentUser?.isAdmin) return;
+        const round = roundsData[0]; // первый раунд
+        if (!round || round.type !== "image_sequence") return;
+        
+        await restPut('gameState/answersReview', {
+            active: true,
+            roundIndex: 0,
+            currentSlide: 0,
+            totalSlides: round.questions.length
+        });
+        showAnswerSlide(0);
+    }
+
+    function showAnswerSlide(slideIndex) {
+        if (reviewTimerInterval) clearInterval(reviewTimerInterval);
+        const round = roundsData[0];
+        const question = round.questions[slideIndex];
+        const container = document.getElementById('answersReviewContent');
+        if (!container) return;
+        
+        let imagesHtml = '';
+        question.images.forEach(img => {
+            imagesHtml += `<img src="${img}" class="round-image" style="max-width:200px; margin:5px;">`;
+        });
+        
+        container.innerHTML = `
+            <h2>${round.name} — Правильный ответ ${slideIndex+1}/${round.questions.length}</h2>
+            <div class="answers-review-container">${imagesHtml}</div>
+            <div class="correct-answer-big">${question.correctAnswer}</div>
+            <div class="timer" id="reviewTimer">10</div>
+        `;
+        container.setAttribute('data-slide', slideIndex);
+        
+        if (currentUser?.isAdmin) {
+            let timeLeft = 10;
+            const timerDiv = document.getElementById('reviewTimer');
+            reviewTimerInterval = setInterval(async () => {
+                timeLeft--;
+                if (timerDiv) timerDiv.innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(reviewTimerInterval);
+                    const nextIndex = slideIndex + 1;
+                    if (nextIndex < round.questions.length) {
+                        await restPatch('gameState/answersReview', { currentSlide: nextIndex });
+                        showAnswerSlide(nextIndex);
+                    } else {
+                        await restDelete('gameState/answersReview');
+                        // Вернуться в ожидание
+                        document.getElementById('answersReviewScreen').classList.add('hidden');
+                        showWaitingScreen();
+                    }
+                }
+            }, 1000);
         }
     }
-    showCurrentQuestion();
-    if(currentUser && currentUser.isAdmin) {
-        document.getElementById('nextRoundBtn').classList.add('hidden');
-        await updateAdminAnswersPanel();
-    }
-    document.getElementById('waitingScreen').classList.add('hidden');
-    document.getElementById('quizScreen').classList.remove('hidden');
-    document.getElementById('pauseScreen').classList.add('hidden');
-}
 
     async function showFinalResults() {
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
         document.getElementById('pauseScreen').classList.add('hidden');
+        document.getElementById('answersReviewScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.remove('hidden');
         const players = await restGet('players') || {};
         let teamsScores = [0,0,0,0];
@@ -730,6 +806,7 @@
         document.getElementById('waitingScreen').classList.remove('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
         document.getElementById('pauseScreen').classList.add('hidden');
+        document.getElementById('answersReviewScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.add('hidden');
         if(currentUser && !currentUser.isAdmin) {
             const changeBlock = document.getElementById('changeTeamBlock');
@@ -750,7 +827,40 @@
             try {
                 const state = await restGet('gameState');
                 const pauseState = await restGet('gameState/pause');
+                const reviewState = await restGet('gameState/answersReview');
 
+                // Обработка режима просмотра ответов
+                if (reviewState && reviewState.active) {
+                    document.getElementById('waitingScreen')?.classList.add('hidden');
+                    document.getElementById('quizScreen')?.classList.add('hidden');
+                    document.getElementById('pauseScreen')?.classList.add('hidden');
+                    document.getElementById('answersReviewScreen')?.classList.remove('hidden');
+                    
+                    if (!currentUser?.isAdmin) {
+                        const round = roundsData[reviewState.roundIndex];
+                        const question = round.questions[reviewState.currentSlide];
+                        const container = document.getElementById('answersReviewContent');
+                        let imagesHtml = '';
+                        question.images.forEach(img => {
+                            imagesHtml += `<img src="${img}" class="round-image" style="max-width:200px; margin:5px;">`;
+                        });
+                        container.innerHTML = `
+                            <h2>${round.name} — Правильный ответ ${reviewState.currentSlide+1}/${reviewState.totalSlides}</h2>
+                            <div class="answers-review-container">${imagesHtml}</div>
+                            <div class="correct-answer-big">${question.correctAnswer}</div>
+                        `;
+                    } else {
+                        const lastSlide = document.getElementById('answersReviewContent')?.getAttribute('data-slide');
+                        if (lastSlide != reviewState.currentSlide) {
+                            showAnswerSlide(reviewState.currentSlide);
+                        }
+                    }
+                    return;
+                } else {
+                    document.getElementById('answersReviewScreen')?.classList.add('hidden');
+                }
+
+                // Обработка сброса игры
                 if (state && state.reset) {
                     if (!currentUser || !currentUser.isAdmin) {
                         localStorage.removeItem('quizUser');
@@ -759,6 +869,7 @@
                     return;
                 }
 
+                // Основной переход между состояниями игры
                 if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
                     gameActive = true; roundInProgress = true;
                     currentRound = state.currentRound; currentQuestionIdx = state.currentQuestion || 0;
@@ -793,8 +904,8 @@
                                     answered = true;
                                     currentAnswerText = playerAns.answer;
                                 } else {
-                                    questionAnswered = false;  // ← добавить
-                                    answered = false;          // ← добавить
+                                    questionAnswered = false;
+                                    answered = false;
                                     const draftKey = `${currentRound}_${currentQuestionIdx}`;
                                     if (draftAnswers[draftKey]) {
                                         currentAnswerText = draftAnswers[draftKey];
@@ -963,31 +1074,6 @@
         });
     }
 
-    function showCorrectAnswers() {
-        const round = roundsData[0];
-        if(!round || round.type !== "image_sequence") return;
-        let modal = document.getElementById('answersModal');
-        if(!modal) {
-            modal = document.createElement('div');
-            modal.id = 'answersModal';
-            modal.className = 'modal';
-            modal.innerHTML = `<div class="modal-content"><span class="close-modal">&times;</span><h2>Правильные ответы: ${round.name}</h2><div id="answersList"></div></div>`;
-            document.body.appendChild(modal);
-            modal.querySelector('.close-modal').onclick = () => modal.style.display = 'none';
-            window.onclick = (e) => { if(e.target === modal) modal.style.display = 'none'; };
-        }
-        const listDiv = modal.querySelector('#answersList');
-        listDiv.innerHTML = '';
-        round.questions.forEach((q, idx) => {
-            const answerDiv = document.createElement('div');
-            answerDiv.className = 'answer-item';
-            const imgUrl = q.images[0];
-            answerDiv.innerHTML = `<img src="${imgUrl}" alt="Вопрос ${idx+1}"><div><strong>Вопрос ${idx+1}:</strong> ${q.correctAnswer || 'Не указан'}</div>`;
-            listDiv.appendChild(answerDiv);
-        });
-        modal.style.display = 'block';
-    }
-
     async function clearAllPlayers() {
         if(!currentUser || !currentUser.isAdmin) return;
         if(confirm("Вы уверены, что хотите удалить ВСЕХ игроков? Это действие необратимо.")) {
@@ -1059,7 +1145,7 @@
         document.getElementById('nextRoundBtn')?.addEventListener('click', async ()=>{
             if(currentUser?.isAdmin) currentRound+1 < roundsData.length ? await startRound(currentRound+1) : showFinalResults();
         });
-        document.getElementById('showAnswersBtn')?.addEventListener('click', showCorrectAnswers);
+        document.getElementById('showAnswersBtn')?.addEventListener('click', startAnswersReview);
         document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
         document.getElementById('resetGameBtn')?.addEventListener('click', resetGame);
         document.getElementById('becomeAdminBtn')?.addEventListener('click', ()=>{
