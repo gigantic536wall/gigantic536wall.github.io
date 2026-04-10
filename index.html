@@ -482,54 +482,73 @@
 }
 
     function startPauseBetweenQuestions() {
-        if(roundsData[currentRound].type !== "image_sequence") return;
-        if(pauseInterval) clearInterval(pauseInterval);
-        pauseActive = true;
-        isWaitingForNextQuestion = true;
-        document.getElementById('pauseTitle').innerText = "⏸️ Пауза между аниме";
-        document.getElementById('pauseMessage').innerHTML = "Следующее аниме начнётся через:";
-        document.getElementById('skipPauseBtn').classList.remove('hidden');
-        document.getElementById('pauseScreen').classList.remove('hidden');
-        document.getElementById('quizScreen').classList.add('hidden');
-        let remaining = 15;
-        const timerDiv = document.getElementById('pauseTimer');
-        timerDiv.innerText = remaining;
-        pauseInterval = setInterval(async () => {
-            remaining--;
-            timerDiv.innerText = remaining;
-            if(remaining <= 0) {
-                clearInterval(pauseInterval);
-                pauseActive = false;
-                isWaitingForNextQuestion = false;
-                document.getElementById('pauseScreen').classList.add('hidden');
-                if(currentQuestionIdx + 1 < roundsData[currentRound].questions.length) {
-                    currentQuestionIdx++;
-                    showCurrentQuestion();
-                    document.getElementById('quizScreen').classList.remove('hidden');
-                } else {
-                    finishRound();
-                }
-            }
-        }, 1000);
+    if (roundsData[currentRound].type !== "image_sequence") return;
+    if (pauseInterval) clearInterval(pauseInterval);
+    pauseActive = true;
+    isWaitingForNextQuestion = true;
+
+    // Администратор записывает состояние паузы в Firebase
+    if (currentUser && currentUser.isAdmin) {
+        const pauseEndTime = Date.now() + 15000; // 15 секунд
+        restPut('gameState/pause', {
+            active: true,
+            endTime: pauseEndTime,
+            skip: false
+        });
     }
 
-    function skipCurrentPause() {
-        if(pauseActive && pauseInterval) {
+    document.getElementById('pauseTitle').innerText = "⏸️ Пауза между аниме";
+    document.getElementById('pauseMessage').innerHTML = "Следующее аниме начнётся через:";
+    document.getElementById('skipPauseBtn').classList.remove('hidden');
+    document.getElementById('pauseScreen').classList.remove('hidden');
+    document.getElementById('quizScreen').classList.add('hidden');
+
+    let remaining = 15;
+    const timerDiv = document.getElementById('pauseTimer');
+    timerDiv.innerText = remaining;
+
+    pauseInterval = setInterval(() => {
+        remaining--;
+        timerDiv.innerText = remaining;
+        if (remaining <= 0) {
             clearInterval(pauseInterval);
+            // Администратор очищает состояние паузы
+            if (currentUser && currentUser.isAdmin) {
+                restDelete('gameState/pause');
+            }
             pauseActive = false;
+            isWaitingForNextQuestion = false;
             document.getElementById('pauseScreen').classList.add('hidden');
-            if(isWaitingForNextQuestion) {
-                isWaitingForNextQuestion = false;
-                if(currentQuestionIdx + 1 < roundsData[currentRound].questions.length) {
-                    currentQuestionIdx++;
-                    showCurrentQuestion();
-                    document.getElementById('quizScreen').classList.remove('hidden');
-                } else {
-                    finishRound();
-                }
+            if (currentQuestionIdx + 1 < roundsData[currentRound].questions.length) {
+                currentQuestionIdx++;
+                showCurrentQuestion();
+                document.getElementById('quizScreen').classList.remove('hidden');
+            } else {
+                finishRound();
             }
         }
+    }, 1000);
+}
+
+   function skipCurrentPause() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    // Устанавливаем флаг пропуска в Firebase
+    restPut('gameState/pause', { skip: true });
+    // Локально тоже завершаем паузу
+    if (pauseInterval) clearInterval(pauseInterval);
+    pauseActive = false;
+    document.getElementById('pauseScreen').classList.add('hidden');
+    if (isWaitingForNextQuestion) {
+        isWaitingForNextQuestion = false;
+        if (currentQuestionIdx + 1 < roundsData[currentRound].questions.length) {
+            currentQuestionIdx++;
+            showCurrentQuestion();
+            document.getElementById('quizScreen').classList.remove('hidden');
+        } else {
+            finishRound();
+        }
     }
+}
 
     async function answerQuiz(selectedIdx) {
         if(!gameActive || !roundInProgress) return;
@@ -654,6 +673,18 @@
     pollingInterval = setInterval(async () => {
         try {
             const state = await restGet('gameState');
+            const pauseState = await restGet('gameState/pause');
+
+            // 1. Обработка сброса игры (на случай, если флаг reset остался)
+            if (state && state.reset) {
+                if (!currentUser || !currentUser.isAdmin) {
+                    localStorage.removeItem('quizUser');
+                    location.reload();
+                }
+                return;
+            }
+
+            // 2. Основной переход между состояниями игры (активно/неактивно)
             if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
                 gameActive = true; roundInProgress = true;
                 currentRound = state.currentRound; currentQuestionIdx = state.currentQuestion || 0;
@@ -662,29 +693,27 @@
                     document.getElementById('quizScreen')?.classList.remove('hidden');
                     document.getElementById('waitingScreen')?.classList.add('hidden');
                     document.getElementById('pauseScreen')?.classList.add('hidden');
-                } else showFinalResults();
+                } else {
+                    showFinalResults();
+                }
             } else if (state && !state.active && gameActive && !pauseActive) {
                 gameActive = false; roundInProgress = false;
                 showWaitingScreen();
                 if (currentUser?.isAdmin) await updateAdminAnswersPanel();
-            } else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
-                // СИНХРОНИЗАЦИЯ ДЛЯ ИГРОКОВ
+            } 
+            // 3. Синхронизация шагов изображений для игроков (только если нет паузы)
+            else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
                 if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
-                    // Проверяем, изменился ли шаг
                     if (state.imageStep !== imageStep) {
-                        // Останавливаем старый таймер
                         if (timerInterval) clearInterval(timerInterval);
-                        // Обновляем переменные
                         imageStep = state.imageStep;
                         answered = state.answered || false;
                         currentAnswerText = state.answerText || '';
-                        // Перерисовываем вопрос
                         const round = roundsData[currentRound];
                         const question = round.questions[currentQuestionIdx];
                         const startTime = (imageStep === 3) ? 12 : 8;
                         startImageQuestion(question, false, startTime);
                     } else {
-                        // Если флаг answered изменился, обновляем блокировку полей
                         if (state.answered !== answered) {
                             answered = state.answered;
                             if (answered) {
@@ -697,10 +726,62 @@
                     }
                 }
             }
+
+            // 4. Обработка паузы между вопросами (синхронизация для всех)
+            if (pauseState) {
+                const now = Date.now();
+                const shouldEndPause = pauseState.skip || (pauseState.endTime && now >= pauseState.endTime);
+
+                if (shouldEndPause) {
+                    // Завершаем паузу локально, если она ещё активна
+                    if (pauseActive) {
+                        clearInterval(pauseInterval);
+                        pauseActive = false;
+                        isWaitingForNextQuestion = false;
+                        document.getElementById('pauseScreen')?.classList.add('hidden');
+                        if (currentQuestionIdx + 1 < roundsData[currentRound].questions.length) {
+                            currentQuestionIdx++;
+                            showCurrentQuestion();
+                            document.getElementById('quizScreen')?.classList.remove('hidden');
+                        } else {
+                            finishRound();
+                        }
+                    }
+                    // Удаляем состояние паузы (админ или при skip)
+                    if (currentUser?.isAdmin || pauseState.skip) {
+                        await restDelete('gameState/pause');
+                    }
+                } else if (pauseState.active && !pauseActive) {
+                    // Клиент не в паузе, но должен быть (например, игрок при старте паузы)
+                    if (!currentUser?.isAdmin) {
+                        pauseActive = true;
+                        isWaitingForNextQuestion = true;
+                        document.getElementById('pauseTitle').innerText = "⏸️ Пауза между аниме";
+                        document.getElementById('pauseMessage').innerHTML = "Следующее аниме начнётся через:";
+                        document.getElementById('skipPauseBtn')?.classList.add('hidden'); // игроки не могут пропускать
+                        document.getElementById('pauseScreen')?.classList.remove('hidden');
+                        document.getElementById('quizScreen')?.classList.add('hidden');
+                        
+                        let remaining = Math.max(0, Math.ceil((pauseState.endTime - now) / 1000));
+                        const timerDiv = document.getElementById('pauseTimer');
+                        timerDiv.innerText = remaining;
+                        
+                        pauseInterval = setInterval(() => {
+                            remaining--;
+                            timerDiv.innerText = remaining;
+                            if (remaining <= 0) {
+                                clearInterval(pauseInterval);
+                                // Ждём следующего опроса, который завершит паузу
+                            }
+                        }, 1000);
+                    }
+                }
+            }
+
             await updateTeamsDisplay();
             if (currentUser?.isAdmin) await updateAdminTeamsDisplay();
         } catch (e) { console.warn("⚠️ Ошибка опроса Firebase:", e); }
-    }, 500); // Уменьшили интервал до 500 мс для более быстрой реакции
+    }, 500);
 }
 
     async function joinGame(nickname, team) {
