@@ -195,6 +195,7 @@
     let imageStep=0, answered=false, answerGivenAtStep=-1, userAnswerText="", currentQuestionObj=null, currentAnswerText="";
     let pollingInterval=null, isWaitingForNextQuestion=false;
     let sessionRestored = false;
+    let questionAnswered = false;
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
     function showError(msg){ const d=document.getElementById('errorDisplay'); if(d){ d.innerText=msg; d.style.display='block'; setTimeout(()=>d.style.display='none',5000); } }
@@ -340,6 +341,7 @@
         if(round.type === "image_sequence") {
             imageStep = 0; 
             answered = false; 
+            questionAnswered = false;
             answerGivenAtStep = -1; 
             userAnswerText = "";
             currentAnswerText = "";
@@ -392,6 +394,7 @@
             imageStep = state.imageStep !== undefined ? state.imageStep : 0;
         }
         answered = state.answered || false;
+        questionAnswered = state.questionAnswered || false;
         currentAnswerText = state.answerText || '';
     } else {
         imageStep = 0;
@@ -423,7 +426,7 @@
     let timeLeft = startTime !== null ? startTime : ((imageStep === 3) ? 12 : 8);
     const container = document.getElementById('roundContent');
     const imgUrl = question.images[imageStep];
-    const inputDisabled = answered ? 'disabled' : '';
+    const inputDisabled = questionAnswered ? 'disabled' : ''; // ← замена
     const safeAnswerText = (currentAnswerText || '').replace(/"/g, '&quot;');
     
     container.innerHTML = `
@@ -441,25 +444,24 @@
     const answerInput = document.getElementById('answerInput');
     const submitBtn = document.getElementById('submitAnswerBtn');
     
-    if(!answered) {
+    if(!questionAnswered) { // ← замена
         answerInput.addEventListener('input', (e) => {
             currentAnswerText = e.target.value;
-            // Опционально: синхронизация текста для админа (не обязательно)
         });
         if(currentAnswerText) answerInput.value = currentAnswerText;
         
         submitBtn.onclick = async () => {
-            if(answered) return;
+            if(questionAnswered) return; // ← замена
             const answer = answerInput.value.trim();
             if(answer === "") { alert("Введите ответ"); return; }
             answered = true;
+            questionAnswered = true; // ← устанавливаем оба флага
             answerGivenAtStep = imageStep;
             userAnswerText = answer;
             if(currentUser && !currentUser.isAdmin) {
                 const path = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
                 await restPut(path, { answered: true, step: imageStep, answer: answer, timestamp: Date.now() });
             }
-            // Админ обновляет общее состояние
             if(currentUser?.isAdmin) {
                 await restPut('gameState', {
                     active: true,
@@ -468,9 +470,20 @@
                     imageStep: imageStep,
                     imageTimeLeft: timeLeft,
                     answered: true,
+                    questionAnswered: true, // ← добавить
                     answerText: answer
                 });
             }
+            answerInput.disabled = true;
+            submitBtn.disabled = true;
+            if(currentUser?.isAdmin) await updateAdminAnswersPanel();
+        };
+    }
+            answerInput.disabled = true;
+            submitBtn.disabled = true;
+            if(currentUser?.isAdmin) await updateAdminAnswersPanel();
+        };
+    }
             answerInput.disabled = true;
             submitBtn.disabled = true;
             // Обновляем таблицу админа сразу после ответа игрока
@@ -485,27 +498,28 @@
         const timerDiv = document.getElementById('timer');
         if(timerDiv) timerDiv.innerText = timeLeft;
         
-        if(timeLeft <= 0) {
-            clearInterval(timerInterval);
-            if(currentUser?.isAdmin) {
-                imageStep++;
-                const nextTime = (imageStep === 3) ? 12 : 8;
-                await restPut('gameState', {
-                    active: true,
-                    currentRound: currentRound,
-                    currentQuestion: currentQuestionIdx,
-                    imageStep: imageStep,
-                    imageTimeLeft: nextTime,
-                    answered: false,
-                    answerText: currentAnswerText  // ← сохраняем текст между шагами
-                });
-                if(imageStep < 4) {
-                    startImageQuestion(question, false, nextTime);
-                } else {
-                    startPauseBetweenQuestions();
-                }
-            }
+       if(timeLeft <= 0) {
+    clearInterval(timerInterval);
+    if(currentUser?.isAdmin) {
+        imageStep++;
+        const nextTime = (imageStep === 3) ? 12 : 8;
+        await restPut('gameState', {
+            active: true,
+            currentRound: currentRound,
+            currentQuestion: currentQuestionIdx,
+            imageStep: imageStep,
+            imageTimeLeft: nextTime,
+            answered: false,
+            questionAnswered: questionAnswered, // ← сохраняем статус ответа
+            answerText: currentAnswerText
+        });
+        if(imageStep < 4) {
+            startImageQuestion(question, false, nextTime);
+        } else {
+            startPauseBetweenQuestions();
         }
+    }
+} 
     }, 1000);
 }
 
@@ -736,6 +750,7 @@
                         if (timerInterval) clearInterval(timerInterval);
                         imageStep = state.imageStep;
                         answered = state.answered || false;
+                        questionAnswered = state.questionAnswered || false;
                         currentAnswerText = state.answerText || '';
                         const round = roundsData[currentRound];
                         const question = round.questions[currentQuestionIdx];
@@ -744,6 +759,7 @@
                     } else {
                         if (state.answered !== answered) {
                             answered = state.answered;
+                            questionAnswered = state.questionAnswered;
                             if (answered) {
                                 const answerInput = document.getElementById('answerInput');
                                 const submitBtn = document.getElementById('submitAnswerBtn');
