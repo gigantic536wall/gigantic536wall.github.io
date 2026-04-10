@@ -345,11 +345,9 @@
     
     if(round.type === "image_sequence") {
     imageStep = 0; 
-    answered = false; 
-    questionAnswered = false;
     answerGivenAtStep = -1; 
     userAnswerText = "";
-    currentAnswerText = "";   // очищаем только для нового вопроса
+    // НЕ сбрасываем currentAnswerText, answered, questionAnswered – они восстановятся в restoreImageState
     currentQuestionObj = question;
     restoreImageState(question);
 }
