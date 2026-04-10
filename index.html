@@ -230,14 +230,16 @@
   async function updateAdminAnswersPanel() {
     const container = document.getElementById('adminAnswersPanel');
     if (!container) return;
+    if (currentRound < 0 || currentRound >= roundsData.length) {
+        container.innerHTML = `<p>Ожидание начала раунда...</p>`;
+        return;
+    }
     const round = roundsData[currentRound];
     
-    // Показываем таблицу только для раундов с картинками
     if (round.type === "image_sequence") {
         const players = await restGet('players') || {};
         let html = `<h3>Ответы игроков на ${round.name} (вопрос ${currentQuestionIdx+1}/${round.questions.length})</h3>`;
         
-        // Блок с правильными ответами
         html += `<div style="background: #2c3e50; padding: 12px; border-radius: 10px; margin-bottom: 15px; text-align: left;">`;
         html += `<strong>✅ Правильные ответы:</strong><br>`;
         round.questions.forEach((q, idx) => {
@@ -267,9 +269,9 @@
                     if (ans && ans.answered) {
                         anyAnswer = true;
                         const points = [4, 3, 2, 1][ans.step];
-                        // Извлекаем номер вопроса из ключа "q0", "q1" ...
                         const questionIndex = parseInt(qIdx.replace(/\D/g, '')) || 0;
-                        const correctAns = round.questions[questionIndex]?.correctAnswer || '—';
+                        const questionObj = round.questions[questionIndex];
+                        const correctAns = questionObj ? questionObj.correctAnswer : '—';
                         html += `<tr>
                             <td>${p.nickname}</td>
                             <td>Команда ${p.team + 1}</td>
@@ -290,7 +292,6 @@
         html += `</table>`;
         container.innerHTML = html;
         
-        // Обработчики кнопок
         document.querySelectorAll('.mark-correct').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const playerId = btn.getAttribute('data-player');
@@ -315,6 +316,8 @@
         container.innerHTML = `<p>Раунд ${round.name} — автоматическая проверка (админ не требуется)</p>`;
     }
 }
+
+    
 /*    async function syncImageState() {
         if (!gameActive || !roundInProgress || roundsData[currentRound].type !== "image_sequence") return;
         const timerDiv = document.getElementById('timer');
@@ -386,7 +389,7 @@
         }
     }
 
-    async function restoreImageState(question) {
+   async function restoreImageState(question) {
     const state = await restGet('gameState');
     if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
         if (state.imageStep >= 4) {
@@ -411,14 +414,19 @@
     }
     
     const startTime = (imageStep === 3) ? 12 : 8;
-    startImageQuestion(question, false, startTime);
+    startImageQuestion(question, questionAnswered, startTime);
 }
 
+    
   function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
     if (!alreadyAnswered) {
         answered = false;
-        questionAnswered = false;  // ← сброс при новом шаге
+        questionAnswered = false;
         currentAnswerText = '';
+    } else {
+        // Если восстанавливаем состояние, где уже был ответ, блокируем
+        questionAnswered = true;
+        answered = true; // на всякий случай
     }
     
     if (imageStep >= 4) {
