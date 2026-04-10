@@ -226,15 +226,17 @@
         }
     }
 
-    async function updateAdminAnswersPanel() {
+  async function updateAdminAnswersPanel() {
     const container = document.getElementById('adminAnswersPanel');
     if (!container) return;
     const round = roundsData[currentRound];
-    if (!gameActive && round.type === "image_sequence") {
+    
+    // Показываем таблицу только для раундов с картинками
+    if (round.type === "image_sequence") {
         const players = await restGet('players') || {};
-        let html = `<h3>Ответы игроков на ${round.name}</h3>`;
+        let html = `<h3>Ответы игроков на ${round.name} (вопрос ${currentQuestionIdx+1}/${round.questions.length})</h3>`;
         
-        // Блок с правильными ответами для администратора
+        // Блок с правильными ответами
         html += `<div style="background: #2c3e50; padding: 12px; border-radius: 10px; margin-bottom: 15px; text-align: left;">`;
         html += `<strong>✅ Правильные ответы:</strong><br>`;
         round.questions.forEach((q, idx) => {
@@ -281,10 +283,11 @@
                 }
             }
         }
-        if (!anyAnswer) html += `<tr><td colspan="7">Нет ответов</td></tr>`;
+        if (!anyAnswer) html += `<tr><td colspan="7">Пока нет ответов</td></tr>`;
         html += `</table>`;
         container.innerHTML = html;
         
+        // Обработчики кнопок
         document.querySelectorAll('.mark-correct').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const playerId = btn.getAttribute('data-player');
@@ -306,10 +309,9 @@
             });
         });
     } else {
-        container.innerHTML = `<p>Раунд ${round.name} - автоматическая проверка (админ не требуется)</p>`;
+        container.innerHTML = `<p>Раунд ${round.name} — автоматическая проверка (админ не требуется)</p>`;
     }
 }
-
 /*    async function syncImageState() {
         if (!gameActive || !roundInProgress || roundsData[currentRound].type !== "image_sequence") return;
         const timerDiv = document.getElementById('timer');
@@ -701,7 +703,7 @@
             const state = await restGet('gameState');
             const pauseState = await restGet('gameState/pause');
 
-            // 1. Обработка сброса игры (на случай, если флаг reset остался)
+            // 1. Обработка сброса игры
             if (state && state.reset) {
                 if (!currentUser || !currentUser.isAdmin) {
                     localStorage.removeItem('quizUser');
@@ -710,7 +712,7 @@
                 return;
             }
 
-            // 2. Основной переход между состояниями игры (активно/неактивно)
+            // 2. Основной переход между состояниями игры
             if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
                 gameActive = true; roundInProgress = true;
                 currentRound = state.currentRound; currentQuestionIdx = state.currentQuestion || 0;
@@ -727,7 +729,7 @@
                 showWaitingScreen();
                 if (currentUser?.isAdmin) await updateAdminAnswersPanel();
             } 
-            // 3. Синхронизация шагов изображений для игроков (только если нет паузы)
+            // 3. Синхронизация шагов изображений для игроков (если нет паузы)
             else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
                 if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
                     if (state.imageStep !== imageStep) {
@@ -753,13 +755,12 @@
                 }
             }
 
-            // 4. Обработка паузы между вопросами (синхронизация для всех)
+            // 4. Обработка паузы между вопросами
             if (pauseState) {
                 const now = Date.now();
                 const shouldEndPause = pauseState.skip || (pauseState.endTime && now >= pauseState.endTime);
 
                 if (shouldEndPause) {
-                    // Завершаем паузу локально, если она ещё активна
                     if (pauseActive) {
                         clearInterval(pauseInterval);
                         pauseActive = false;
@@ -773,18 +774,16 @@
                             finishRound();
                         }
                     }
-                    // Удаляем состояние паузы (админ или при skip)
                     if (currentUser?.isAdmin || pauseState.skip) {
                         await restDelete('gameState/pause');
                     }
                 } else if (pauseState.active && !pauseActive) {
-                    // Клиент не в паузе, но должен быть (например, игрок при старте паузы)
                     if (!currentUser?.isAdmin) {
                         pauseActive = true;
                         isWaitingForNextQuestion = true;
                         document.getElementById('pauseTitle').innerText = "⏸️ Пауза между аниме";
                         document.getElementById('pauseMessage').innerHTML = "Следующее аниме начнётся через:";
-                        document.getElementById('skipPauseBtn')?.classList.add('hidden'); // игроки не могут пропускать
+                        document.getElementById('skipPauseBtn')?.classList.add('hidden');
                         document.getElementById('pauseScreen')?.classList.remove('hidden');
                         document.getElementById('quizScreen')?.classList.add('hidden');
                         
@@ -797,16 +796,24 @@
                             timerDiv.innerText = remaining;
                             if (remaining <= 0) {
                                 clearInterval(pauseInterval);
-                                // Ждём следующего опроса, который завершит паузу
                             }
                         }, 1000);
                     }
                 }
             }
 
+            // 5. Обновление отображения команд и ответов
             await updateTeamsDisplay();
-            if (currentUser?.isAdmin) await updateAdminTeamsDisplay();
-        } catch (e) { console.warn("⚠️ Ошибка опроса Firebase:", e); }
+            if (currentUser?.isAdmin) {
+                await updateAdminTeamsDisplay();
+                // Обновляем таблицу ответов в реальном времени для раунда с картинками
+                if (roundsData[currentRound]?.type === "image_sequence") {
+                    await updateAdminAnswersPanel();
+                }
+            }
+        } catch (e) { 
+            console.warn("⚠️ Ошибка опроса Firebase:", e); 
+        }
     }, 500);
 }
 
