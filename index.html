@@ -335,24 +335,25 @@
     }*/
 
     function showCurrentQuestion() {
-        if (timerInterval) clearInterval(timerInterval);
-        if (currentQuizTimer) clearInterval(currentQuizTimer);
-        
-        const round = roundsData[currentRound];
-        const question = round.questions[currentQuestionIdx];
-        const container = document.getElementById('roundContent');
-        if(!container) return;
-        
-        if(round.type === "image_sequence") {
-            imageStep = 0; 
-            answered = false; 
-            questionAnswered = false;
-            answerGivenAtStep = -1; 
-            userAnswerText = "";
-            currentAnswerText = "";
-            currentQuestionObj = question;
-            restoreImageState(question);
-        } else {
+    if (timerInterval) clearInterval(timerInterval);
+    if (currentQuizTimer) clearInterval(currentQuizTimer);
+    
+    const round = roundsData[currentRound];
+    const question = round.questions[currentQuestionIdx];
+    const container = document.getElementById('roundContent');
+    if(!container) return;
+    
+    if(round.type === "image_sequence") {
+        // Полный сброс для нового вопроса
+        imageStep = 0; 
+        answered = false; 
+        questionAnswered = false;
+        answerGivenAtStep = -1; 
+        userAnswerText = "";
+        currentAnswerText = "";
+        currentQuestionObj = question;
+        restoreImageState(question);
+    } else {
             container.innerHTML = `
                 <div class="question-block">
                     <h2>${round.name} | Вопрос ${currentQuestionIdx+1} из ${round.questions.length}</h2>
@@ -392,16 +393,19 @@
    async function restoreImageState(question) {
     const state = await restGet('gameState');
     if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
+        // Восстанавливаем шаг
         if (state.imageStep >= 4) {
             console.warn("Некорректный imageStep, сброс на 0");
             imageStep = 0;
         } else {
             imageStep = state.imageStep !== undefined ? state.imageStep : 0;
         }
+        // Восстанавливаем флаги ответа и текст
         answered = state.answered || false;
         questionAnswered = state.questionAnswered || false;
         currentAnswerText = state.answerText || '';
     } else {
+        // Если состояния нет – начинаем с нуля
         imageStep = 0;
         answered = false;
         questionAnswered = false;
@@ -414,17 +418,20 @@
     }
     
     const startTime = (imageStep === 3) ? 12 : 8;
-    // Передаём alreadyAnswered = true, если вопрос уже отвечен, чтобы поле осталось заблокированным
+    // Важно: передаём questionAnswered как alreadyAnswered, чтобы поле осталось заблокированным, если ответ уже был
     startImageQuestion(question, questionAnswered, startTime);
 }
     
     
   function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
-    // Если уже был ответ, не сбрасываем флаг questionAnswered
-    if (!alreadyAnswered) {
+    // Если вопрос уже отвечен, то блокируем ввод и не сбрасываем флаг
+    if (alreadyAnswered) {
+        questionAnswered = true;
+        answered = true;
+    } else {
+        // Новый шаг (если ответа ещё не было)
         answered = false;
         questionAnswered = false;
-        currentAnswerText = '';
     }
     
     if (imageStep >= 4) {
@@ -453,6 +460,7 @@
     const answerInput = document.getElementById('answerInput');
     const submitBtn = document.getElementById('submitAnswerBtn');
     
+    // Если ответ ещё не был дан, разрешаем ввод
     if(!questionAnswered) {
         answerInput.addEventListener('input', (e) => {
             currentAnswerText = e.target.value;
@@ -463,14 +471,20 @@
             if(questionAnswered) return;
             const answer = answerInput.value.trim();
             if(answer === "") { alert("Введите ответ"); return; }
+            
+            // Блокируем повторный ответ
             answered = true;
             questionAnswered = true;
             answerGivenAtStep = imageStep;
             userAnswerText = answer;
+            
+            // Сохраняем ответ игрока в базе
             if(currentUser && !currentUser.isAdmin) {
                 const path = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
                 await restPut(path, { answered: true, step: imageStep, answer: answer, timestamp: Date.now() });
             }
+            
+            // Админ обновляет общее состояние для синхронизации с другими клиентами
             if(currentUser?.isAdmin) {
                 await restPut('gameState', {
                     active: true,
@@ -483,8 +497,11 @@
                     answerText: answer
                 });
             }
+            
+            // Блокируем поля
             answerInput.disabled = true;
             submitBtn.disabled = true;
+            
             if(currentUser?.isAdmin) await updateAdminAnswersPanel();
         };
     }
@@ -501,6 +518,7 @@
             if(currentUser?.isAdmin) {
                 imageStep++;
                 const nextTime = (imageStep === 3) ? 12 : 8;
+                // Сохраняем состояние для игроков
                 await restPut('gameState', {
                     active: true,
                     currentRound: currentRound,
@@ -508,11 +526,11 @@
                     imageStep: imageStep,
                     imageTimeLeft: nextTime,
                     answered: false,
-                    questionAnswered: questionAnswered, // сохраняем статус ответа
+                    questionAnswered: questionAnswered,   // ← важно: сохраняем флаг блокировки
                     answerText: currentAnswerText
                 });
                 if(imageStep < 4) {
-                    // Если уже был ответ, передаём alreadyAnswered = true, чтобы не сбросить блокировку
+                    // Передаём флаг блокировки в следующий шаг
                     startImageQuestion(question, questionAnswered, nextTime);
                 } else {
                     startPauseBetweenQuestions();
@@ -743,32 +761,40 @@
                 if (currentUser?.isAdmin) await updateAdminAnswersPanel();
             } 
             // 3. Синхронизация шагов изображений для игроков (если нет паузы)
-            else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
-                if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
-                    if (state.imageStep !== imageStep) {
-                        if (timerInterval) clearInterval(timerInterval);
-                        imageStep = state.imageStep;
-                        answered = state.answered || false;
-                        questionAnswered = state.questionAnswered || false;
-                        currentAnswerText = state.answerText || '';
-                        const round = roundsData[currentRound];
-                        const question = round.questions[currentQuestionIdx];
-                        const startTime = (imageStep === 3) ? 12 : 8;
-                        startImageQuestion(question, questionAnswered, startTime);
-                    } else {
-                        if (state.answered !== answered) {
-                            answered = state.answered;
-                            questionAnswered = state.questionAnswered;
-                            if (answered) {
-                                const answerInput = document.getElementById('answerInput');
-                                const submitBtn = document.getElementById('submitAnswerBtn');
-                                if (answerInput) answerInput.disabled = true;
-                                if (submitBtn) submitBtn.disabled = true;
-                            }
-                        }
+           else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
+    if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
+        // Проверяем, изменился ли шаг
+        if (state.imageStep !== imageStep) {
+            if (timerInterval) clearInterval(timerInterval);
+            imageStep = state.imageStep;
+            answered = state.answered || false;
+            questionAnswered = state.questionAnswered || false;
+            currentAnswerText = state.answerText || '';
+            const round = roundsData[currentRound];
+            const question = round.questions[currentQuestionIdx];
+            const startTime = (imageStep === 3) ? 12 : 8;
+            // Важно: передаём questionAnswered, чтобы поле сразу было заблокировано при восстановлении
+            startImageQuestion(question, questionAnswered, startTime);
+        } else {
+            // Если флаг ответа изменился, обновляем блокировку полей
+            if (state.questionAnswered !== questionAnswered) {
+                questionAnswered = state.questionAnswered;
+                answered = state.answered;
+                if (questionAnswered) {
+                    const answerInput = document.getElementById('answerInput');
+                    const submitBtn = document.getElementById('submitAnswerBtn');
+                    if (answerInput) answerInput.disabled = true;
+                    if (submitBtn) submitBtn.disabled = true;
+                    // Также обновляем текст, если он пришёл из состояния
+                    if (state.answerText && answerInput) {
+                        answerInput.value = state.answerText;
+                        currentAnswerText = state.answerText;
                     }
                 }
             }
+        }
+    }
+}
 
             // 4. Обработка паузы между вопросами
             if (pauseState) {
