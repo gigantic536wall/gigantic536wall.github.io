@@ -239,6 +239,7 @@ async function restDelete(path) {
     let currentAnswerText = "";
     let pollingInterval = null;
     let isWaitingForNextQuestion = false;
+    let sessionRestored = false;   
 
     function showError(msg) {
         const errDiv = document.getElementById('errorDisplay');
@@ -692,11 +693,12 @@ async function restDelete(path) {
         }
     }
 
-   function startPolling() {
+ function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
         try {
             const state = await restGet('gameState');
+            
             // Обработка сигнала сброса
             if (state && state.reset) {
                 if (!currentUser || !currentUser.isAdmin) {
@@ -706,12 +708,13 @@ async function restDelete(path) {
                 return;
             }
             
-            if(state && state.active && !gameActive && !roundInProgress && !pauseActive) {
+            // Если игра активна, а локально мы считаем иначе – синхронизируем
+            if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
                 gameActive = true;
                 roundInProgress = true;
                 currentRound = state.currentRound;
                 currentQuestionIdx = state.currentQuestion || 0;
-                if(currentRound < roundsData.length) {
+                if (currentRound < roundsData.length) {
                     showCurrentQuestion();
                     document.getElementById('quizScreen').classList.remove('hidden');
                     document.getElementById('waitingScreen').classList.add('hidden');
@@ -719,23 +722,28 @@ async function restDelete(path) {
                 } else {
                     showFinalResults();
                 }
-            } else if(state && !state.active && gameActive && !pauseActive) {
+            } else if (state && !state.active && gameActive && !pauseActive) {
                 gameActive = false;
                 roundInProgress = false;
                 showWaitingScreen();
-                if(currentUser && currentUser.isAdmin) {
+                if (currentUser && currentUser.isAdmin) {
                     await updateAdminAnswersPanel();
                 }
             }
+            
+            // Обновляем список команд
             await updateTeamsDisplay();
-            if(currentUser && currentUser.isAdmin) await updateAdminTeamsDisplay();
+            if (currentUser && currentUser.isAdmin) await updateAdminTeamsDisplay();
+            
         } catch (error) {
-            console.warn("Ошибка опроса Firebase (игнорируем):", error);
+            console.warn("⚠️ Ошибка опроса Firebase (игнорируем):", error);
+            // Не трогаем интерфейс – просто ждём следующего цикла
         }
     }, 1000);
 }
 
-   async function joinGame(nickname, team) {
+   // ==================== ИСПРАВЛЕННАЯ ФУНКЦИЯ ВХОДА ====================
+async function joinGame(nickname, team) {
     try {
         const userId = nickname + "_" + Date.now();
         const playerData = { nickname, team: parseInt(team), score: 0, isAdmin: false };
@@ -743,15 +751,16 @@ async function restDelete(path) {
         
         currentUser = { nickname, team: parseInt(team), isAdmin: false, id: userId };
         localStorage.setItem('quizUser', JSON.stringify(currentUser));
-        console.log("Игрок создан, переходим в игру");
+        sessionRestored = true; // 🔒 Больше не восстанавливаем сессию автоматически
+        console.log("✅ Игрок создан, переходим в игру");
         showGameScreen();
     } catch (error) {
-        console.error("Ошибка при присоединении к игре:", error);
+        console.error("❌ Ошибка при присоединении:", error);
         alert("Не удалось подключиться к серверу. Проверьте соединение или настройки Firebase.");
     }
 }
 
-
+    
 async function adminLogin(password) {
     if (password !== "admin123") {
         alert("Неверный пароль");
@@ -772,16 +781,25 @@ async function adminLogin(password) {
     }
 }
 
-   function showGameScreen() {
-    console.log("showGameScreen вызвана");
+    
+function showGameScreen() {
+    console.log("🎮 showGameScreen вызвана, currentUser:", currentUser);
     const loginScreen = document.getElementById('loginScreen');
     const gameScreen = document.getElementById('gameScreen');
+    
+    // Если экран игры уже показан, не делаем ничего
+    if (gameScreen && !gameScreen.classList.contains('hidden') && loginScreen && loginScreen.classList.contains('hidden')) {
+        console.log("ℹ️ Экран игры уже активен, пропускаем повторный показ");
+        return;
+    }
+    
     if (loginScreen) loginScreen.classList.add('hidden');
     if (gameScreen) gameScreen.classList.remove('hidden');
     
     document.getElementById('playerInfo').innerHTML = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
     startPolling();
-    if(!currentUser.isAdmin) {
+    
+    if (!currentUser.isAdmin) {
         showWaitingScreen();
     } else {
         document.getElementById('changeTeamBlock')?.classList.add('hidden');
@@ -789,7 +807,6 @@ async function adminLogin(password) {
         updateAdminTeamsDisplay();
     }
 }
-
 
     async function changeTeam(newTeam) {
         if(gameActive) {
@@ -945,15 +962,18 @@ async function adminLogin(password) {
     
     // ==================== ВОССТАНОВЛЕНИЕ СЕССИИ ====================
 const saved = localStorage.getItem('quizUser');
-if (saved) {
+if (saved && !sessionRestored) {
+    sessionRestored = true;
     try {
         const u = JSON.parse(saved);
         if (u.isAdmin) {
             currentUser = u;
-            showGameScreen();
+            if (document.getElementById('gameScreen').classList.contains('hidden')) {
+                showGameScreen();
+            }
             document.getElementById('adminPanel').classList.remove('hidden');
         } else {
-            // Проверяем, существует ли запись игрока
+            // Проверяем, существует ли запись игрока в базе
             restGet(`players/${u.id}`).then(async (playerData) => {
                 if (!playerData) {
                     // Если игрока нет в базе, создаём заново
@@ -971,12 +991,15 @@ if (saved) {
                     }
                 }
                 currentUser = u;
-                showGameScreen();
+                if (document.getElementById('gameScreen').classList.contains('hidden')) {
+                    showGameScreen();
+                }
             }).catch(error => {
                 console.error("Ошибка восстановления сессии:", error);
-                // Если не удалось проверить Firebase, всё равно показываем экран (оффлайн-режим не поддерживается, но хотя бы не зависаем)
                 currentUser = u;
-                showGameScreen();
+                if (document.getElementById('gameScreen').classList.contains('hidden')) {
+                    showGameScreen();
+                }
             });
         }
     } catch (e) {
