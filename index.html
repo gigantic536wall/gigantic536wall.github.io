@@ -343,26 +343,26 @@
             answered: answered,
             answerText: currentAnswerText
         };
-        await restPut('gameState', state);
+        await restPut('gameState', state).catch(console.error);
     }
 
     // Отображение текущего вопроса
-   async function showCurrentQuestion() {
+    function showCurrentQuestion() {
+        // Очищаем старые таймеры
+        if (timerInterval) clearInterval(timerInterval);
+        if (currentQuizTimer) clearInterval(currentQuizTimer);
+        
         const round = roundsData[currentRound];
         const question = round.questions[currentQuestionIdx];
         const container = document.getElementById('roundContent');
         if(!container) return;
-        await restPut('gameState', {
-    active: true,
-    currentRound: currentRound,
-    currentQuestion: currentQuestionIdx,
-    imageStep: 0,
-    imageTimeLeft: 8,
-    answered: false,
-    answerText: ""
-});
+        
         if(round.type === "image_sequence") {
-            imageStep = 0; answered = false; answerGivenAtStep = -1; userAnswerText = "";
+            // Сбрасываем локальные переменные для нового вопроса
+            imageStep = 0; 
+            answered = false; 
+            answerGivenAtStep = -1; 
+            userAnswerText = "";
             currentAnswerText = "";
             currentQuestionObj = question;
             restoreImageState(question);
@@ -388,7 +388,6 @@
             timerDiv.className = "timer";
             timerDiv.innerText = timeLeft;
             container.appendChild(timerDiv);
-            if(currentQuizTimer) clearInterval(currentQuizTimer);
             currentQuizTimer = setInterval(() => {
                 if(!gameActive || !roundInProgress) { clearInterval(currentQuizTimer); return; }
                 timeLeft--;
@@ -406,53 +405,57 @@
 
     async function restoreImageState(question) {
         const state = await restGet('gameState');
-        if(state && state.reset) {
-    localStorage.removeItem('quizUser');
-    location.reload();
-    return;
-}
+        // Проверяем, что состояние соответствует текущему вопросу
         if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
-            if (state.imageStep !== undefined) imageStep = state.imageStep;
-            if (state.answered !== undefined) answered = state.answered;
-            if (state.answerText !== undefined) currentAnswerText = state.answerText;
-            if (answered) {
-                let restoredTime = state.imageTimeLeft;
-                if (restoredTime === undefined) restoredTime = (imageStep === 3) ? 12 : 8;
-                startImageQuestion(question, true, restoredTime);
-                return;
+            // Если сохранённый шаг >= 4, сбрасываем на 0
+            if (state.imageStep >= 4) {
+                console.warn("Некорректный imageStep, сброс на 0");
+                imageStep = 0;
+            } else {
+                imageStep = state.imageStep !== undefined ? state.imageStep : 0;
             }
-            let savedTime = state.imageTimeLeft;
-            if (savedTime !== undefined && savedTime > 0) {
-                startImageQuestion(question, false, savedTime);
-                return;
-            }
+            answered = state.answered || false;
+            currentAnswerText = state.answerText || '';
+        } else {
+            // Дефолтные значения
+            imageStep = 0;
+            answered = false;
+            currentAnswerText = '';
         }
-        const defaultTime = (imageStep === 3) ? 12 : 8;
-        startImageQuestion(question, false, defaultTime);
-      if (state.imageStep !== undefined) {
-    imageStep = state.imageStep;
-    if(imageStep >= 4) imageStep = 0;
-}
-    }
-
-    function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
-        if (imageStep > 3) {
-    imageStep = 0;
-}
+        
+        // Если шаг >= 4, сразу запускаем паузу
         if (imageStep >= 4) {
             startPauseBetweenQuestions();
             return;
         }
-        let timeLeft;
-        if (startTime !== null) {
-            timeLeft = startTime;
-        } else {
-            timeLeft = (imageStep === 3) ? 12 : 8;
+        
+        // Определяем стартовое время таймера
+        let startTime = (imageStep === 3) ? 12 : 8;
+        if (state && state.imageTimeLeft !== undefined) {
+            startTime = state.imageTimeLeft;
         }
+        
+        startImageQuestion(question, false, startTime);
+    }
+
+    function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
+        // Если это новый шаг (не восстановленный ответ), сбрасываем answered
+        if (!alreadyAnswered) {
+            answered = false;
+            currentAnswerText = '';
+        }
+        
+        if (imageStep >= 4) {
+            startPauseBetweenQuestions();
+            return;
+        }
+        
+        let timeLeft = startTime !== null ? startTime : ((imageStep === 3) ? 12 : 8);
         const container = document.getElementById('roundContent');
         const imgUrl = question.images[imageStep];
         const inputDisabled = answered ? 'disabled' : '';
         const safeAnswerText = (currentAnswerText || '').replace(/"/g, '&quot;');
+        
         container.innerHTML = `
             <div class="image-round-container">
                 <h2>${roundsData[currentRound].name} | Вопрос ${currentQuestionIdx+1} из ${roundsData[currentRound].questions.length}</h2>
@@ -501,9 +504,6 @@
             await syncImageState();
             if(timeLeft <= 0) {
                 clearInterval(timerInterval);
-                if(!answered) {
-                    // ничего не начисляем
-                }
                 imageStep++;
                 if(imageStep < 4) {
                     const nextTime = (imageStep === 3) ? 12 : 8;
@@ -596,12 +596,7 @@
     async function finishRound() {
         roundInProgress = false;
         gameActive = false;
-       await restPut('gameState', { 
-    active: false,
-    currentRound: currentRound,
-    currentQuestion: currentQuestionIdx,
-    roundFinished: true
-});
+        await restPut('gameState', { active: false, currentRound: currentRound, currentQuestion: currentQuestionIdx, roundFinished: true });
         showWaitingScreen();
         if(currentUser && currentUser.isAdmin) {
             document.getElementById('nextRoundBtn').classList.remove('hidden');
@@ -624,7 +619,18 @@
         currentQuestionIdx = 0;
         gameActive = true;
         roundInProgress = true;
-        await restPut('gameState', { active: true, currentRound: roundIndex, currentQuestion: 0, roundFinished: false, imageStep: 0, imageTimeLeft: 8, answered: false });
+        
+        // Записываем начальное состояние и ждём завершения
+        await restPut('gameState', {
+            active: true,
+            currentRound: roundIndex,
+            currentQuestion: 0,
+            roundFinished: false,
+            imageStep: 0,
+            imageTimeLeft: 8,
+            answered: false
+        });
+        
         document.getElementById('showAnswersBtn')?.classList.add('hidden');
         const players = await restGet('players') || {};
         for(let id in players) {
@@ -679,14 +685,19 @@
     }
 
     function startPolling() {
-        if(state && state.reset) {
-    localStorage.removeItem('quizUser');
-    location.reload();
-    return;
-}
         if(pollingInterval) clearInterval(pollingInterval);
         pollingInterval = setInterval(async () => {
             const state = await restGet('gameState');
+            // Обработка сигнала сброса
+            if (state && state.reset) {
+                // Если мы не админ (админ уже перезагрузился), перезагружаем страницу
+                if (!currentUser || !currentUser.isAdmin) {
+                    localStorage.removeItem('quizUser');
+                    location.reload();
+                }
+                return;
+            }
+            
             if(state && state.active && !gameActive && !roundInProgress && !pauseActive) {
                 gameActive = true;
                 roundInProgress = true;
@@ -765,10 +776,8 @@
         }
         document.getElementById('changeTeamMsg').innerHTML = "✅ Команда изменена!";
         setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 2000);
-        // Обновляем отображение команд
         await updateTeamsDisplay();
         if(currentUser && currentUser.isAdmin) await updateAdminTeamsDisplay();
-        // Обновляем подсветку в блоке смены команды
         const btns = document.querySelectorAll('#changeTeamButtons .team-btn');
         btns.forEach(btn => {
             if(parseInt(btn.dataset.team) === currentUser.team) btn.classList.add('selected');
@@ -820,24 +829,17 @@
     async function resetGame() {
         if(!currentUser || !currentUser.isAdmin) return;
         if(confirm("Сбросить игру? Все данные игроков и прогресс будут удалены.")) {
-            // Очищаем всех игроков (включая админа? Нет, админа не трогаем, но всех остальных удаляем)
+            // 1. Удаляем всех игроков (кроме админов)
             const players = await restGet('players') || {};
             for(let id in players) {
                 if(!players[id].isAdmin) {
                     await restDelete(`players/${id}`);
                 }
             }
-            // Сбрасываем gameState в начальное состояние
-           await restPut('gameState', { 
-    active: false, 
-    currentRound: 0, 
-    currentQuestion: 0, 
-    roundFinished: false,
-    reset: true
-});
-            // Очищаем localStorage у текущего пользователя (чтобы при перезагрузке он не восстановил игрока)
+            // 2. Сбрасываем gameState в специальное значение, сигнализирующее о сбросе
+            await restPut('gameState', { reset: true, timestamp: Date.now() });
+            // 3. Очищаем localStorage у текущего админа и перезагружаем страницу
             localStorage.removeItem('quizUser');
-            // Перезагружаем страницу, чтобы все клиенты получили чистое состояние
             location.reload();
         }
     }
@@ -869,7 +871,7 @@
     });
     document.getElementById('showAnswersBtn')?.addEventListener('click', showCorrectAnswers);
     document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
-    document.getElementById('resetGameBtn')?.addEventListener('click', resetGame); // исправлено
+    document.getElementById('resetGameBtn')?.addEventListener('click', resetGame);
     document.getElementById('becomeAdminBtn')?.addEventListener('click', () => {
         const pwd = prompt("Введите пароль администратора:");
         if(pwd === "admin123") {
@@ -906,7 +908,7 @@
     const firstBtn = document.querySelector('#loginTeamButtons .team-btn');
     if(firstBtn) firstBtn.classList.add('selected');
 
-    // === ИСПРАВЛЕННОЕ ВОССТАНОВЛЕНИЕ СЕССИИ ===
+    // Восстановление сессии
     const saved = localStorage.getItem('quizUser');
     if(saved) {
         try {
@@ -917,13 +919,10 @@
                 document.getElementById('adminPanel').classList.remove('hidden');
             } else {
                 currentUser = u;
-                // Проверяем, существует ли запись игрока в Firebase
                 restGet(`players/${u.id}`).then(async (playerData) => {
                     if(!playerData) {
-                        // Если нет - создаём заново
                         await restPut(`players/${u.id}`, { nickname: u.nickname, team: u.team, score: 0, isAdmin: false });
                     } else {
-                        // Если есть, но команда в Firebase отличается от сохранённой - обновляем currentUser
                         if(playerData.team !== u.team) {
                             currentUser.team = playerData.team;
                             u.team = playerData.team;
