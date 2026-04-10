@@ -629,34 +629,30 @@
     }
 
     function startPolling() {
-        if (pollingInterval) clearInterval(pollingInterval);
-        pollingInterval = setInterval(async () => {
-            try {
-                const state = await restGet('gameState');
-                if (state && state.reset) {
-                    console.warn("🔄 Сброс игры по сигналу");
-                    if (!currentUser || !currentUser.isAdmin) { localStorage.removeItem('quizUser'); location.reload(); }
-                    return;
-                }
-                if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
-                    gameActive = true; roundInProgress = true;
-                    currentRound = state.currentRound; currentQuestionIdx = state.currentQuestion || 0;
-                    if (currentRound < roundsData.length) {
-                        showCurrentQuestion();
-                        document.getElementById('quizScreen')?.classList.remove('hidden');
-                        document.getElementById('waitingScreen')?.classList.add('hidden');
-                        document.getElementById('pauseScreen')?.classList.add('hidden');
-                    } else showFinalResults();
-                } else if (state && !state.active && gameActive && !pauseActive) {
-                    gameActive = false; roundInProgress = false;
-                    showWaitingScreen();
-                    if (currentUser?.isAdmin) await updateAdminAnswersPanel();
-                }
-                await updateTeamsDisplay();
-                if (currentUser?.isAdmin) await updateAdminTeamsDisplay();
-            } catch (e) { console.warn("⚠️ Ошибка опроса Firebase:", e); }
-        }, 1000);
-    }
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(async () => {
+        try {
+            const state = await restGet('gameState');
+            // ❌ Убираем блок обработки reset — он больше не нужен
+            if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
+                gameActive = true; roundInProgress = true;
+                currentRound = state.currentRound; currentQuestionIdx = state.currentQuestion || 0;
+                if (currentRound < roundsData.length) {
+                    showCurrentQuestion();
+                    document.getElementById('quizScreen')?.classList.remove('hidden');
+                    document.getElementById('waitingScreen')?.classList.add('hidden');
+                    document.getElementById('pauseScreen')?.classList.add('hidden');
+                } else showFinalResults();
+            } else if (state && !state.active && gameActive && !pauseActive) {
+                gameActive = false; roundInProgress = false;
+                showWaitingScreen();
+                if (currentUser?.isAdmin) await updateAdminAnswersPanel();
+            }
+            await updateTeamsDisplay();
+            if (currentUser?.isAdmin) await updateAdminTeamsDisplay();
+        } catch (e) { console.warn("⚠️ Ошибка опроса Firebase:", e); }
+    }, 1000);
+}
 
     async function joinGame(nickname, team) {
         try {
@@ -777,19 +773,21 @@
     }
 
     async function resetGame() {
-        if(!currentUser || !currentUser.isAdmin) return;
-        if(confirm("Сбросить игру? Все данные игроков и прогресс будут удалены.")) {
-            const players = await restGet('players') || {};
-            for(let id in players) {
-                if(!players[id].isAdmin) {
-                    await restDelete(`players/${id}`);
-                }
+    if(!currentUser || !currentUser.isAdmin) return;
+    if(confirm("Сбросить игру? Все данные игроков и прогресс будут удалены.")) {
+        // Удаляем всех игроков (кроме админов)
+        const players = await restGet('players') || {};
+        for(let id in players) {
+            if(!players[id].isAdmin) {
+                await restDelete(`players/${id}`);
             }
-            await restPut('gameState', { reset: true, timestamp: Date.now() });
-            localStorage.removeItem('quizUser');
-            location.reload();
         }
+        // ✅ Полностью удаляем gameState, чтобы не осталось reset: true
+        await restDelete('gameState');
+        localStorage.removeItem('quizUser');
+        location.reload();
     }
+}
 
     // ==================== ВОССТАНОВЛЕНИЕ СЕССИИ ====================
     (function restoreSession() {
