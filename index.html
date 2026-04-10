@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Аниме викторина | 8 раундов (GitHub Pages + REST API)</title>
     <style>
+        /* Ваши стили без изменений */
         * { box-sizing: border-box; }
         body {
             background: linear-gradient(135deg, #1a1a2e, #16213e);
@@ -163,96 +164,41 @@
 </div>
 
 <script>
-    // ==================== КОНФИГ FIREBASE (REST API) ====================
-   const DB_URL = "https://anime-database-7d48e-default-rtdb.europe-west1.firebasedatabase.app";
-
-async function restGet(path) {
-    const res = await fetch(`${DB_URL}/${path}.json`);
-    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
-    return res.json();
-}
-async function restPut(path, data) {
-    const res = await fetch(`${DB_URL}/${path}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error(`PUT ${path} failed: ${res.status}`);
-    return res.json();
-}
-async function restPatch(path, data) {
-    const res = await fetch(`${DB_URL}/${path}.json`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
-    return res.json();
-}
-async function restDelete(path) {
-    const res = await fetch(`${DB_URL}/${path}.json`, { method: 'DELETE' });
-    if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
-    return res.json();
-}
+    // ==================== КОНФИГ FIREBASE ====================
+    const DB_URL = "https://anime-database-7d48e-default-rtdb.europe-west1.firebasedatabase.app";
+    async function restGet(p) { const r=await fetch(`${DB_URL}/${p}.json`); if(!r.ok) throw new Error(`GET ${p} ${r.status}`); return r.json(); }
+    async function restPut(p,d) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); if(!r.ok) throw new Error(`PUT ${p} ${r.status}`); return r.json(); }
+    async function restPatch(p,d) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); if(!r.ok) throw new Error(`PATCH ${p} ${r.status}`); return r.json(); }
+    async function restDelete(p) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'DELETE'}); if(!r.ok) throw new Error(`DELETE ${p} ${r.status}`); return r.json(); }
 
     // ==================== ДАННЫЕ ИГРЫ ====================
     const roundsData = [
         { type: "image_sequence", name: "Раунд 1: Угадай аниме по картинке", questions: [
-            { images: ["images/image1.png", "images/image2.png", "images/image3.png", "images/image4.png"], correctAnswer: "Реинкарнация безработного" },
-            { images: ["images/image1маг.png", "images/image2маг.png", "images/image3маг.png", "images/image4.png"], correctAnswer: "Магическая битва " },
-            { images: ["images/image1невест.png", "images/image2невест.png", "images/image3невест.png", "images/image4невест.png"], correctAnswer: "Пять невест" },
-            { images: ["images/images1джо.jpg", "images/images2джо.jpg", "images/images3джо.jpg", "images/images4джо.jpg"], correctAnswer: "ДжоДжо" },
-            { images: ["images/anime5_1.jpg", "images/anime5_2.jpg", "images/anime5_3.jpg", "images/anime5_4.jpg"], correctAnswer: "Название аниме 5" },
-            { images: ["images/anime6_1.jpg", "images/anime6_2.jpg", "images/anime6_3.jpg", "images/anime6_4.jpg"], correctAnswer: "Название аниме 6" },
-            { images: ["images/anime7_1.jpg", "images/anime7_2.jpg", "images/anime7_3.jpg", "images/anime7_4.jpg"], correctAnswer: "Название аниме 7" },
-            { images: ["images/anime8_1.jpg", "images/anime8_2.jpg", "images/anime8_3.jpg", "images/anime8_4.jpg"], correctAnswer: "Название аниме 8" },
-            { images: ["images/anime9_1.jpg", "images/anime9_2.jpg", "images/anime9_3.jpg", "images/anime9_4.jpg"], correctAnswer: "Название аниме 9" },
-            { images: ["images/anime10_1.jpg", "images/anime10_2.jpg", "images/anime10_3.jpg", "images/anime10_4.jpg"], correctAnswer: "Название аниме 10" }
+            { images: ["images/image1.png","images/image2.png","images/image3.png","images/image4.png"], correctAnswer: "Реинкарнация безработного" },
+            { images: ["images/image1маг.png","images/image2маг.png","images/image3маг.png","images/image4.png"], correctAnswer: "Магическая битва " },
+            { images: ["images/image1невест.png","images/image2невест.png","images/image3невест.png","images/image4невест.png"], correctAnswer: "Пять невест" },
+            { images: ["images/images1джо.jpg","images/images2джо.jpg","images/images3джо.jpg","images/images4джо.jpg"], correctAnswer: "ДжоДжо" },
+            { images: ["images/anime5_1.jpg","images/anime5_2.jpg","images/anime5_3.jpg","images/anime5_4.jpg"], correctAnswer: "Название аниме 5" },
+            { images: ["images/anime6_1.jpg","images/anime6_2.jpg","images/anime6_3.jpg","images/anime6_4.jpg"], correctAnswer: "Название аниме 6" },
+            { images: ["images/anime7_1.jpg","images/anime7_2.jpg","images/anime7_3.jpg","images/anime7_4.jpg"], correctAnswer: "Название аниме 7" },
+            { images: ["images/anime8_1.jpg","images/anime8_2.jpg","images/anime8_3.jpg","images/anime8_4.jpg"], correctAnswer: "Название аниме 8" },
+            { images: ["images/anime9_1.jpg","images/anime9_2.jpg","images/anime9_3.jpg","images/anime9_4.jpg"], correctAnswer: "Название аниме 9" },
+            { images: ["images/anime10_1.jpg","images/anime10_2.jpg","images/anime10_3.jpg","images/anime10_4.jpg"], correctAnswer: "Название аниме 10" }
         ] },
-        { type: "quiz", name: "Раунд 2: Общие знания", questions: generateQuizQuestions(2) },
-        { type: "quiz", name: "Раунд 3: Персонажи", questions: generateQuizQuestions(3) },
-        { type: "quiz", name: "Раунд 4: Сюжеты", questions: generateQuizQuestions(4) },
-        { type: "quiz", name: "Раунд 5: Манга", questions: generateQuizQuestions(5) },
-        { type: "quiz", name: "Раунд 6: Студии", questions: generateQuizQuestions(6) },
-        { type: "quiz", name: "Раунд 7: Озвучка", questions: generateQuizQuestions(7) },
-        { type: "quiz", name: "Раунд 8: Финал", questions: generateQuizQuestions(8) }
+        ...Array.from({length:7},(_,i)=> ({ type:"quiz", name:`Раунд ${i+2}: ${["Общие знания","Персонажи","Сюжеты","Манга","Студии","Озвучка","Финал"][i]}`, questions: generateQuizQuestions(i+2) }))
     ];
+    function generateQuizQuestions(roundNum){ return Array.from({length:10},(_,i)=>({ text:`Вопрос ${i+1} раунда ${roundNum}: Назовите аниме, где главного героя зовут Гоку?`, options:["Наруто","Драгон Болл","Ван Пис","Блич"], correct:1, points:2 })); }
 
-    function generateQuizQuestions(roundNum) {
-        let qs = [];
-        for(let i=1; i<=10; i++) {
-            qs.push({
-                text: `Вопрос ${i} раунда ${roundNum}: Назовите аниме, где главного героя зовут Гоку?`,
-                options: ["Наруто", "Драгон Болл", "Ван Пис", "Блич"],
-                correct: 1,
-                points: 2
-            });
-        }
-        return qs;
-    }
+    // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
+    let currentRound=0, currentQuestionIdx=0, gameActive=false, roundInProgress=false, pauseActive=false;
+    let currentUser=null, timerInterval=null, currentQuizTimer=null, pauseInterval=null;
+    let imageStep=0, answered=false, answerGivenAtStep=-1, userAnswerText="", currentQuestionObj=null, currentAnswerText="";
+    let pollingInterval=null, isWaitingForNextQuestion=false;
+    let sessionRestored = false;
 
-    // Состояние
-    let currentRound = 0, currentQuestionIdx = 0, gameActive = false, roundInProgress = false, pauseActive = false;
-    let currentUser = null;
-    let timerInterval = null, currentQuizTimer = null, pauseInterval = null;
-    let imageStep = 0, answered = false, answerGivenAtStep = -1, userAnswerText = "", currentQuestionObj = null;
-    let currentAnswerText = "";
-    let pollingInterval = null;
-    let isWaitingForNextQuestion = false;
-    let sessionRestored = false;   
-
-    function showError(msg) {
-        const errDiv = document.getElementById('errorDisplay');
-        if(errDiv) { errDiv.innerText = msg; errDiv.style.display = 'block'; setTimeout(() => errDiv.style.display = 'none', 5000); }
-    }
-
-    async function awardPoints(playerId, delta) {
-        const player = await restGet(`players/${playerId}`);
-        if(player) {
-            const newScore = (player.score || 0) + delta;
-            await restPatch(`players/${playerId}`, { score: newScore });
-        }
-    }
+    // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+    function showError(msg){ const d=document.getElementById('errorDisplay'); if(d){ d.innerText=msg; d.style.display='block'; setTimeout(()=>d.style.display='none',5000); } }
+    async function awardPoints(playerId,delta){ const p=await restGet(`players/${playerId}`); if(p) await restPatch(`players/${playerId}`,{score:(p.score||0)+delta}); }
 
     async function updateTeamsDisplay() {
         const players = await restGet('players') || {};
@@ -338,7 +284,6 @@ async function restDelete(path) {
         }
     }
 
-    // Сохранение текущего состояния таймера и шага в Firebase
     async function syncImageState() {
         if (!gameActive || !roundInProgress || roundsData[currentRound].type !== "image_sequence") return;
         const timerDiv = document.getElementById('timer');
@@ -355,9 +300,7 @@ async function restDelete(path) {
         await restPut('gameState', state).catch(console.error);
     }
 
-    // Отображение текущего вопроса
     function showCurrentQuestion() {
-        // Очищаем старые таймеры
         if (timerInterval) clearInterval(timerInterval);
         if (currentQuizTimer) clearInterval(currentQuizTimer);
         
@@ -367,7 +310,6 @@ async function restDelete(path) {
         if(!container) return;
         
         if(round.type === "image_sequence") {
-            // Сбрасываем локальные переменные для нового вопроса
             imageStep = 0; 
             answered = false; 
             answerGivenAtStep = -1; 
@@ -414,9 +356,7 @@ async function restDelete(path) {
 
     async function restoreImageState(question) {
         const state = await restGet('gameState');
-        // Проверяем, что состояние соответствует текущему вопросу
         if (state && state.active && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
-            // Если сохранённый шаг >= 4, сбрасываем на 0
             if (state.imageStep >= 4) {
                 console.warn("Некорректный imageStep, сброс на 0");
                 imageStep = 0;
@@ -426,19 +366,16 @@ async function restDelete(path) {
             answered = state.answered || false;
             currentAnswerText = state.answerText || '';
         } else {
-            // Дефолтные значения
             imageStep = 0;
             answered = false;
             currentAnswerText = '';
         }
         
-        // Если шаг >= 4, сразу запускаем паузу
         if (imageStep >= 4) {
             startPauseBetweenQuestions();
             return;
         }
         
-        // Определяем стартовое время таймера
         let startTime = (imageStep === 3) ? 12 : 8;
         if (state && state.imageTimeLeft !== undefined) {
             startTime = state.imageTimeLeft;
@@ -448,7 +385,6 @@ async function restDelete(path) {
     }
 
     function startImageQuestion(question, alreadyAnswered = false, startTime = null) {
-        // Если это новый шаг (не восстановленный ответ), сбрасываем answered
         if (!alreadyAnswered) {
             answered = false;
             currentAnswerText = '';
@@ -629,7 +565,6 @@ async function restDelete(path) {
         gameActive = true;
         roundInProgress = true;
         
-        // Записываем начальное состояние и ждём завершения
         await restPut('gameState', {
             active: true,
             currentRound: roundIndex,
@@ -693,120 +628,87 @@ async function restDelete(path) {
         }
     }
 
- function startPolling() {
-    if (pollingInterval) clearInterval(pollingInterval);
-    pollingInterval = setInterval(async () => {
+    function startPolling() {
+        if (pollingInterval) clearInterval(pollingInterval);
+        pollingInterval = setInterval(async () => {
+            try {
+                const state = await restGet('gameState');
+                if (state && state.reset) {
+                    console.warn("🔄 Сброс игры по сигналу");
+                    if (!currentUser || !currentUser.isAdmin) { localStorage.removeItem('quizUser'); location.reload(); }
+                    return;
+                }
+                if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
+                    gameActive = true; roundInProgress = true;
+                    currentRound = state.currentRound; currentQuestionIdx = state.currentQuestion || 0;
+                    if (currentRound < roundsData.length) {
+                        showCurrentQuestion();
+                        document.getElementById('quizScreen')?.classList.remove('hidden');
+                        document.getElementById('waitingScreen')?.classList.add('hidden');
+                        document.getElementById('pauseScreen')?.classList.add('hidden');
+                    } else showFinalResults();
+                } else if (state && !state.active && gameActive && !pauseActive) {
+                    gameActive = false; roundInProgress = false;
+                    showWaitingScreen();
+                    if (currentUser?.isAdmin) await updateAdminAnswersPanel();
+                }
+                await updateTeamsDisplay();
+                if (currentUser?.isAdmin) await updateAdminTeamsDisplay();
+            } catch (e) { console.warn("⚠️ Ошибка опроса Firebase:", e); }
+        }, 1000);
+    }
+
+    async function joinGame(nickname, team) {
         try {
-            const state = await restGet('gameState');
-            
-            // Обработка сигнала сброса
-            if (state && state.reset) {
-                if (!currentUser || !currentUser.isAdmin) {
-                    localStorage.removeItem('quizUser');
-                    location.reload();
-                }
-                return;
-            }
-            
-            // Если игра активна, а локально мы считаем иначе – синхронизируем
-            if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
-                gameActive = true;
-                roundInProgress = true;
-                currentRound = state.currentRound;
-                currentQuestionIdx = state.currentQuestion || 0;
-                if (currentRound < roundsData.length) {
-                    showCurrentQuestion();
-                    document.getElementById('quizScreen').classList.remove('hidden');
-                    document.getElementById('waitingScreen').classList.add('hidden');
-                    document.getElementById('pauseScreen').classList.add('hidden');
-                } else {
-                    showFinalResults();
-                }
-            } else if (state && !state.active && gameActive && !pauseActive) {
-                gameActive = false;
-                roundInProgress = false;
-                showWaitingScreen();
-                if (currentUser && currentUser.isAdmin) {
-                    await updateAdminAnswersPanel();
-                }
-            }
-            
-            // Обновляем список команд
-            await updateTeamsDisplay();
-            if (currentUser && currentUser.isAdmin) await updateAdminTeamsDisplay();
-            
-        } catch (error) {
-            console.warn("⚠️ Ошибка опроса Firebase (игнорируем):", error);
-            // Не трогаем интерфейс – просто ждём следующего цикла
+            const userId = nickname + "_" + Date.now();
+            await restPut(`players/${userId}`, { nickname, team: parseInt(team), score: 0, isAdmin: false });
+            currentUser = { nickname, team: parseInt(team), isAdmin: false, id: userId };
+            localStorage.setItem('quizUser', JSON.stringify(currentUser));
+            sessionRestored = true;
+            console.log("✅ Игрок создан, переходим в игру");
+            showGameScreen();
+        } catch (e) {
+            console.error("❌ Ошибка joinGame:", e);
+            alert("Не удалось подключиться к серверу. Проверьте соединение или настройки Firebase.");
         }
-    }, 1000);
-}
-
-   // ==================== ИСПРАВЛЕННАЯ ФУНКЦИЯ ВХОДА ====================
-async function joinGame(nickname, team) {
-    try {
-        const userId = nickname + "_" + Date.now();
-        const playerData = { nickname, team: parseInt(team), score: 0, isAdmin: false };
-        await restPut(`players/${userId}`, playerData);
-        
-        currentUser = { nickname, team: parseInt(team), isAdmin: false, id: userId };
-        localStorage.setItem('quizUser', JSON.stringify(currentUser));
-        sessionRestored = true; // 🔒 Больше не восстанавливаем сессию автоматически
-        console.log("✅ Игрок создан, переходим в игру");
-        showGameScreen();
-    } catch (error) {
-        console.error("❌ Ошибка при присоединении:", error);
-        alert("Не удалось подключиться к серверу. Проверьте соединение или настройки Firebase.");
     }
-}
 
-    
-async function adminLogin(password) {
-    if (password !== "admin123") {
-        alert("Неверный пароль");
-        return;
+    async function adminLogin(password) {
+        if (password !== "admin123") { alert("Неверный пароль"); return; }
+        try {
+            const adminId = "admin_" + Date.now();
+            currentUser = { nickname: "Админ", team: -1, isAdmin: true, id: adminId };
+            localStorage.setItem('quizUser', JSON.stringify(currentUser));
+            sessionRestored = true;
+            console.log("👑 Админ вошёл");
+            showGameScreen();
+            document.getElementById('adminPanel')?.classList.remove('hidden');
+        } catch (e) {
+            console.error("❌ Ошибка adminLogin:", e);
+            alert("Ошибка входа администратора.");
+        }
     }
-    try {
-        const adminId = "admin_" + Date.now();
-        currentUser = { nickname: "Админ", team: -1, isAdmin: true, id: adminId };
-        localStorage.setItem('quizUser', JSON.stringify(currentUser));
-        showGameScreen();
-        document.getElementById('adminPanel').classList.remove('hidden');
+
+    function showGameScreen() {
+        const gameScreen = document.getElementById('gameScreen');
+        if (!gameScreen) return;
+        if (!gameScreen.classList.contains('hidden') && currentUser) {
+            console.log("🛑 showGameScreen прервана: экран уже активен для", currentUser.nickname);
+            return;
+        }
+        console.log("🎮 showGameScreen вызвана, currentUser:", currentUser);
+        document.getElementById('loginScreen')?.classList.add('hidden');
+        gameScreen.classList.remove('hidden');
+        document.getElementById('playerInfo').innerHTML = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
         startPolling();
-        showWaitingScreen();
-        updateAdminTeamsDisplay();
-    } catch (error) {
-        console.error("Ошибка входа админа:", error);
-        alert("Ошибка входа. Попробуйте позже.");
+        if (!currentUser.isAdmin) {
+            showWaitingScreen();
+        } else {
+            document.getElementById('changeTeamBlock')?.classList.add('hidden');
+            showWaitingScreen();
+            updateAdminTeamsDisplay();
+        }
     }
-}
-
-    
-function showGameScreen() {
-    console.log("🎮 showGameScreen вызвана, currentUser:", currentUser);
-    const loginScreen = document.getElementById('loginScreen');
-    const gameScreen = document.getElementById('gameScreen');
-    
-    // Если экран игры уже показан, не делаем ничего
-    if (gameScreen && !gameScreen.classList.contains('hidden') && loginScreen && loginScreen.classList.contains('hidden')) {
-        console.log("ℹ️ Экран игры уже активен, пропускаем повторный показ");
-        return;
-    }
-    
-    if (loginScreen) loginScreen.classList.add('hidden');
-    if (gameScreen) gameScreen.classList.remove('hidden');
-    
-    document.getElementById('playerInfo').innerHTML = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
-    startPolling();
-    
-    if (!currentUser.isAdmin) {
-        showWaitingScreen();
-    } else {
-        document.getElementById('changeTeamBlock')?.classList.add('hidden');
-        showWaitingScreen();
-        updateAdminTeamsDisplay();
-    }
-}
 
     async function changeTeam(newTeam) {
         if(gameActive) {
@@ -874,139 +776,92 @@ function showGameScreen() {
         }
     }
 
-    // === ИСПРАВЛЕННЫЙ СБРОС ИГРЫ ===
     async function resetGame() {
         if(!currentUser || !currentUser.isAdmin) return;
         if(confirm("Сбросить игру? Все данные игроков и прогресс будут удалены.")) {
-            // 1. Удаляем всех игроков (кроме админов)
             const players = await restGet('players') || {};
             for(let id in players) {
                 if(!players[id].isAdmin) {
                     await restDelete(`players/${id}`);
                 }
             }
-            // 2. Сбрасываем gameState в специальное значение, сигнализирующее о сбросе
             await restPut('gameState', { reset: true, timestamp: Date.now() });
-            // 3. Очищаем localStorage у текущего админа и перезагружаем страницу
             localStorage.removeItem('quizUser');
             location.reload();
         }
     }
 
-    // Обработчики
-    document.getElementById('joinBtn')?.addEventListener('click', () => {
-    const nick = document.getElementById('nickname').value.trim();
-    const selectedTeam = document.querySelector('#loginTeamButtons .team-btn.selected')?.dataset.team;
-    if(!nick) { alert("Введи никнейм"); return; }
-    if(selectedTeam === undefined) { alert("Выберите команду"); return; }
-    // Удаляем старую сессию, чтобы избежать конфликтов
-    localStorage.removeItem('quizUser');
-    joinGame(nick, selectedTeam);
-});
-    document.getElementById('adminLoginFromStartBtn')?.addEventListener('click', () => {
-        const pwd = prompt("Введите пароль администратора:");
-        if(pwd === "admin123") adminLogin(pwd);
-        else if(pwd) alert("Неверный пароль");
-    });
-    document.getElementById('startGameBtn')?.addEventListener('click', () => {
-        if(currentUser && currentUser.isAdmin) startRound(0);
-    });
-    document.getElementById('nextRoundBtn')?.addEventListener('click', async () => {
-        if(currentUser && currentUser.isAdmin) {
-            if(currentRound + 1 < roundsData.length) {
-                await startRound(currentRound + 1);
-            } else {
-                showFinalResults();
-            }
-        }
-    });
-    document.getElementById('showAnswersBtn')?.addEventListener('click', showCorrectAnswers);
-    document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
-    document.getElementById('resetGameBtn')?.addEventListener('click', resetGame);
-    document.getElementById('becomeAdminBtn')?.addEventListener('click', () => {
-        const pwd = prompt("Введите пароль администратора:");
-        if(pwd === "admin123") {
-            if(currentUser && !currentUser.isAdmin) restDelete(`players/${currentUser.id}`);
-            adminLogin(pwd);
-        } else if(pwd) alert("Неверный пароль");
-    });
-    document.getElementById('skipPauseBtn')?.addEventListener('click', () => {
-        if(currentUser && currentUser.isAdmin) {
-            skipCurrentPause();
-        } else {
-            alert("Только администратор может пропустить паузу");
-        }
-    });
-
-    document.querySelectorAll('#loginTeamButtons .team-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#loginTeamButtons .team-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-        });
-    });
-    document.querySelectorAll('#changeTeamButtons .team-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            if(!gameActive && currentUser && !currentUser.isAdmin) {
-                changeTeam(btn.dataset.team);
-                document.querySelectorAll('#changeTeamButtons .team-btn').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-            } else {
-                document.getElementById('changeTeamMsg').innerHTML = "Нельзя сменить команду после старта";
-                setTimeout(() => document.getElementById('changeTeamMsg').innerHTML = "", 2000);
-            }
-        });
-    });
-    const firstBtn = document.querySelector('#loginTeamButtons .team-btn');
-    if(firstBtn) firstBtn.classList.add('selected');
-
-    
     // ==================== ВОССТАНОВЛЕНИЕ СЕССИИ ====================
-const saved = localStorage.getItem('quizUser');
-if (saved && !sessionRestored) {
-    sessionRestored = true;
-    try {
-        const u = JSON.parse(saved);
-        if (u.isAdmin) {
-            currentUser = u;
-            if (document.getElementById('gameScreen').classList.contains('hidden')) {
-                showGameScreen();
+    (function restoreSession() {
+        const saved = localStorage.getItem('quizUser');
+        if (!saved || sessionRestored) return;
+        sessionRestored = true;
+        try {
+            const u = JSON.parse(saved);
+            if (u.isAdmin) {
+                currentUser = u;
+                if (document.getElementById('gameScreen').classList.contains('hidden')) showGameScreen();
+                document.getElementById('adminPanel')?.classList.remove('hidden');
+            } else {
+                restGet(`players/${u.id}`).then(async (playerData) => {
+                    if (!playerData) await restPut(`players/${u.id}`, { nickname: u.nickname, team: u.team, score: 0, isAdmin: false });
+                    else if (playerData.team !== u.team) { u.team = playerData.team; localStorage.setItem('quizUser', JSON.stringify(u)); }
+                    currentUser = u;
+                    if (document.getElementById('gameScreen').classList.contains('hidden')) showGameScreen();
+                }).catch(e => { console.error("Ошибка восстановления:", e); currentUser = u; if (document.getElementById('gameScreen').classList.contains('hidden')) showGameScreen(); });
             }
-            document.getElementById('adminPanel').classList.remove('hidden');
-        } else {
-            // Проверяем, существует ли запись игрока в базе
-            restGet(`players/${u.id}`).then(async (playerData) => {
-                if (!playerData) {
-                    // Если игрока нет в базе, создаём заново
-                    await restPut(`players/${u.id}`, { 
-                        nickname: u.nickname, 
-                        team: u.team, 
-                        score: 0, 
-                        isAdmin: false 
-                    }).catch(e => console.warn("Не удалось восстановить игрока:", e));
-                } else {
-                    // Синхронизируем команду, если она изменилась
-                    if (playerData.team !== u.team) {
-                        u.team = playerData.team;
-                        localStorage.setItem('quizUser', JSON.stringify(u));
-                    }
-                }
-                currentUser = u;
-                if (document.getElementById('gameScreen').classList.contains('hidden')) {
-                    showGameScreen();
-                }
-            }).catch(error => {
-                console.error("Ошибка восстановления сессии:", error);
-                currentUser = u;
-                if (document.getElementById('gameScreen').classList.contains('hidden')) {
-                    showGameScreen();
-                }
-            });
-        }
-    } catch (e) {
-        console.error("Ошибка парсинга сохранённой сессии:", e);
-        localStorage.removeItem('quizUser');
+        } catch (e) { localStorage.removeItem('quizUser'); }
+    })();
+
+    // ==================== ОБРАБОТЧИКИ КНОПОК ====================
+    function setupListeners() {
+        document.getElementById('joinBtn')?.addEventListener('click', () => {
+            const nick = document.getElementById('nickname').value.trim();
+            const teamBtn = document.querySelector('#loginTeamButtons .team-btn.selected');
+            if (!nick) { alert("Введи никнейм"); return; }
+            if (!teamBtn) { alert("Выбери команду"); return; }
+            localStorage.removeItem('quizUser');
+            sessionRestored = false;
+            joinGame(nick, teamBtn.dataset.team);
+        });
+        document.getElementById('adminLoginFromStartBtn')?.addEventListener('click', ()=>{
+            const pwd = prompt("Пароль администратора:");
+            if (pwd) adminLogin(pwd);
+        });
+        document.getElementById('startGameBtn')?.addEventListener('click', ()=>{ if(currentUser?.isAdmin) startRound(0); });
+        document.getElementById('nextRoundBtn')?.addEventListener('click', async ()=>{
+            if(currentUser?.isAdmin) currentRound+1 < roundsData.length ? await startRound(currentRound+1) : showFinalResults();
+        });
+        document.getElementById('showAnswersBtn')?.addEventListener('click', showCorrectAnswers);
+        document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
+        document.getElementById('resetGameBtn')?.addEventListener('click', resetGame);
+        document.getElementById('becomeAdminBtn')?.addEventListener('click', ()=>{
+            const pwd = prompt("Пароль администратора:");
+            if (pwd==="admin123") { if(currentUser && !currentUser.isAdmin) restDelete(`players/${currentUser.id}`); adminLogin(pwd); }
+            else if(pwd) alert("Неверный пароль");
+        });
+        document.getElementById('skipPauseBtn')?.addEventListener('click', ()=>{
+            if(currentUser?.isAdmin) skipCurrentPause(); else alert("Только админ может пропустить паузу");
+        });
+        document.querySelectorAll('#loginTeamButtons .team-btn').forEach(b=> b.addEventListener('click', ()=>{
+            document.querySelectorAll('#loginTeamButtons .team-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected');
+        }));
+        document.querySelectorAll('#changeTeamButtons .team-btn').forEach(b=> b.addEventListener('click', async ()=>{
+            if(!gameActive && currentUser && !currentUser.isAdmin){
+                await restPatch(`players/${currentUser.id}`, {team: parseInt(b.dataset.team)});
+                currentUser.team = parseInt(b.dataset.team);
+                localStorage.setItem('quizUser', JSON.stringify(currentUser));
+                document.querySelectorAll('#changeTeamButtons .team-btn').forEach(x=>x.classList.remove('selected'));
+                b.classList.add('selected');
+                document.getElementById('changeTeamMsg').innerHTML="✅ Команда изменена!";
+                setTimeout(()=> document.getElementById('changeTeamMsg').innerHTML="", 2000);
+                updateTeamsDisplay();
+            } else document.getElementById('changeTeamMsg').innerHTML = "Нельзя сменить команду после старта";
+        }));
+        const firstTeam = document.querySelector('#loginTeamButtons .team-btn');
+        if(firstTeam) firstTeam.classList.add('selected');
     }
-}
+    setupListeners();
 </script>
 </body>
 </html>
