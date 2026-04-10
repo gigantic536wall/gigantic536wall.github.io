@@ -760,6 +760,7 @@ async function adminLogin(password) {
         document.getElementById('adminPanel').classList.remove('hidden');
         startPolling();
         showWaitingScreen();
+        updateAdminTeamsDisplay();
     } catch (error) {
         console.error("Ошибка входа админа:", error);
         alert("Ошибка входа. Попробуйте позже.");
@@ -767,17 +768,19 @@ async function adminLogin(password) {
 }
 
     function showGameScreen() {
-        document.getElementById('loginScreen').classList.add('hidden');
-        document.getElementById('gameScreen').classList.remove('hidden');
-        document.getElementById('playerInfo').innerHTML = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
-        startPolling();
-        if(!currentUser.isAdmin) {
-            showWaitingScreen();
-        } else {
-            document.getElementById('changeTeamBlock')?.classList.add('hidden');
-            showWaitingScreen();
-        }
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('gameScreen').classList.remove('hidden');
+    document.getElementById('playerInfo').innerHTML = `Вы: ${currentUser.nickname} ${currentUser.isAdmin ? '(админ)' : ''}`;
+    startPolling();
+    if(!currentUser.isAdmin) {
+        showWaitingScreen();
+    } else {
+        document.getElementById('changeTeamBlock')?.classList.add('hidden');
+        showWaitingScreen();
+        // Немедленное обновление панели админа
+        updateAdminTeamsDisplay();
     }
+}
 
     async function changeTeam(newTeam) {
         if(gameActive) {
