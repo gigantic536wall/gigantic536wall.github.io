@@ -426,7 +426,7 @@
     let timeLeft = startTime !== null ? startTime : ((imageStep === 3) ? 12 : 8);
     const container = document.getElementById('roundContent');
     const imgUrl = question.images[imageStep];
-    const inputDisabled = questionAnswered ? 'disabled' : ''; // ← замена
+    const inputDisabled = questionAnswered ? 'disabled' : '';
     const safeAnswerText = (currentAnswerText || '').replace(/"/g, '&quot;');
     
     container.innerHTML = `
@@ -444,18 +444,18 @@
     const answerInput = document.getElementById('answerInput');
     const submitBtn = document.getElementById('submitAnswerBtn');
     
-    if(!questionAnswered) { // ← замена
+    if(!questionAnswered) {
         answerInput.addEventListener('input', (e) => {
             currentAnswerText = e.target.value;
         });
         if(currentAnswerText) answerInput.value = currentAnswerText;
         
         submitBtn.onclick = async () => {
-            if(questionAnswered) return; // ← замена
+            if(questionAnswered) return;
             const answer = answerInput.value.trim();
             if(answer === "") { alert("Введите ответ"); return; }
             answered = true;
-            questionAnswered = true; // ← устанавливаем оба флага
+            questionAnswered = true;
             answerGivenAtStep = imageStep;
             userAnswerText = answer;
             if(currentUser && !currentUser.isAdmin) {
@@ -470,23 +470,12 @@
                     imageStep: imageStep,
                     imageTimeLeft: timeLeft,
                     answered: true,
-                    questionAnswered: true, // ← добавить
+                    questionAnswered: true,
                     answerText: answer
                 });
             }
             answerInput.disabled = true;
             submitBtn.disabled = true;
-            if(currentUser?.isAdmin) await updateAdminAnswersPanel();
-        };
-    }
-            answerInput.disabled = true;
-            submitBtn.disabled = true;
-            if(currentUser?.isAdmin) await updateAdminAnswersPanel();
-        };
-    }
-            answerInput.disabled = true;
-            submitBtn.disabled = true;
-            // Обновляем таблицу админа сразу после ответа игрока
             if(currentUser?.isAdmin) await updateAdminAnswersPanel();
         };
     }
@@ -498,28 +487,28 @@
         const timerDiv = document.getElementById('timer');
         if(timerDiv) timerDiv.innerText = timeLeft;
         
-       if(timeLeft <= 0) {
-    clearInterval(timerInterval);
-    if(currentUser?.isAdmin) {
-        imageStep++;
-        const nextTime = (imageStep === 3) ? 12 : 8;
-        await restPut('gameState', {
-            active: true,
-            currentRound: currentRound,
-            currentQuestion: currentQuestionIdx,
-            imageStep: imageStep,
-            imageTimeLeft: nextTime,
-            answered: false,
-            questionAnswered: questionAnswered, // ← сохраняем статус ответа
-            answerText: currentAnswerText
-        });
-        if(imageStep < 4) {
-            startImageQuestion(question, false, nextTime);
-        } else {
-            startPauseBetweenQuestions();
+        if(timeLeft <= 0) {
+            clearInterval(timerInterval);
+            if(currentUser?.isAdmin) {
+                imageStep++;
+                const nextTime = (imageStep === 3) ? 12 : 8;
+                await restPut('gameState', {
+                    active: true,
+                    currentRound: currentRound,
+                    currentQuestion: currentQuestionIdx,
+                    imageStep: imageStep,
+                    imageTimeLeft: nextTime,
+                    answered: false,
+                    questionAnswered: questionAnswered,
+                    answerText: currentAnswerText
+                });
+                if(imageStep < 4) {
+                    startImageQuestion(question, false, nextTime);
+                } else {
+                    startPauseBetweenQuestions();
+                }
+            }
         }
-    }
-} 
     }, 1000);
 }
 
