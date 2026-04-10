@@ -444,7 +444,7 @@
     if(!answered) {
         answerInput.addEventListener('input', (e) => {
             currentAnswerText = e.target.value;
-            // БОЛЬШЕ НЕ СИНХРОНИЗИРУЕМ КАЖДЫЙ ВВОД
+            // Опционально: синхронизация текста для админа (не обязательно)
         });
         if(currentAnswerText) answerInput.value = currentAnswerText;
         
@@ -459,8 +459,8 @@
                 const path = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
                 await restPut(path, { answered: true, step: imageStep, answer: answer, timestamp: Date.now() });
             }
-            // Если админ, обновляем gameState для всех
-            if(currentUser && currentUser.isAdmin) {
+            // Админ обновляет общее состояние
+            if(currentUser?.isAdmin) {
                 await restPut('gameState', {
                     active: true,
                     currentRound: currentRound,
@@ -473,6 +473,8 @@
             }
             answerInput.disabled = true;
             submitBtn.disabled = true;
+            // Обновляем таблицу админа сразу после ответа игрока
+            if(currentUser?.isAdmin) await updateAdminAnswersPanel();
         };
     }
     
@@ -485,8 +487,7 @@
         
         if(timeLeft <= 0) {
             clearInterval(timerInterval);
-            if(currentUser && currentUser.isAdmin) {
-                // Только админ меняет шаг
+            if(currentUser?.isAdmin) {
                 imageStep++;
                 const nextTime = (imageStep === 3) ? 12 : 8;
                 await restPut('gameState', {
@@ -496,7 +497,7 @@
                     imageStep: imageStep,
                     imageTimeLeft: nextTime,
                     answered: false,
-                    answerText: ''
+                    answerText: currentAnswerText  // ← сохраняем текст между шагами
                 });
                 if(imageStep < 4) {
                     startImageQuestion(question, false, nextTime);
@@ -504,7 +505,6 @@
                     startPauseBetweenQuestions();
                 }
             }
-            // Игроки не делают ничего, ждут обновления через polling
         }
     }, 1000);
 }
@@ -802,7 +802,7 @@
                 }
             }
 
-            // 5. Обновление отображения команд и ответов
+          // 5. Обновление отображения команд и ответов
             await updateTeamsDisplay();
             if (currentUser?.isAdmin) {
                 await updateAdminTeamsDisplay();
