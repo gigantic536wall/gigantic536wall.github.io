@@ -164,28 +164,36 @@
 
 <script>
     // ==================== КОНФИГ FIREBASE (REST API) ====================
-    const DB_URL = "https://anime-database-7d48e-default-rtdb.europe-west1.firebasedatabase.app";
-    
-    function restGet(path) {
-        return fetch(`${DB_URL}/${path}.json`).then(res => res.json());
-    }
-    function restPut(path, data) {
-        return fetch(`${DB_URL}/${path}.json`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        }).then(res => res.json());
-    }
-    function restPatch(path, data) {
-        return fetch(`${DB_URL}/${path}.json`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        }).then(res => res.json());
-    }
-    function restDelete(path) {
-        return fetch(`${DB_URL}/${path}.json`, { method: 'DELETE' });
-    }
+   const DB_URL = "https://anime-database-7d48e-default-rtdb.europe-west1.firebasedatabase.app";
+
+async function restGet(path) {
+    const res = await fetch(`${DB_URL}/${path}.json`);
+    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+    return res.json();
+}
+async function restPut(path, data) {
+    const res = await fetch(`${DB_URL}/${path}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error(`PUT ${path} failed: ${res.status}`);
+    return res.json();
+}
+async function restPatch(path, data) {
+    const res = await fetch(`${DB_URL}/${path}.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
+    return res.json();
+}
+async function restDelete(path) {
+    const res = await fetch(`${DB_URL}/${path}.json`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
+    return res.json();
+}
 
     // ==================== ДАННЫЕ ИГРЫ ====================
     const roundsData = [
@@ -724,27 +732,39 @@
         }, 1000);
     }
 
-    async function joinGame(nickname, team) {
+   async function joinGame(nickname, team) {
+    try {
         const userId = nickname + "_" + Date.now();
+        const playerData = { nickname, team: parseInt(team), score: 0, isAdmin: false };
+        await restPut(`players/${userId}`, playerData);
+        
         currentUser = { nickname, team: parseInt(team), isAdmin: false, id: userId };
-        await restPut(`players/${userId}`, { nickname, team: parseInt(team), score: 0, isAdmin: false });
-        localStorage.setItem('quizUser', JSON.stringify({ nickname, team: parseInt(team), id: userId, isAdmin: false }));
+        localStorage.setItem('quizUser', JSON.stringify(currentUser));
         showGameScreen();
+    } catch (error) {
+        console.error("Ошибка при присоединении к игре:", error);
+        alert("Не удалось подключиться к серверу. Проверьте соединение или настройки Firebase.");
     }
+}
 
-    async function adminLogin(password) {
-        if(password === "admin123") {
-            const adminId = "admin_" + Date.now();
-            currentUser = { nickname: "Админ", team: -1, isAdmin: true, id: adminId };
-            localStorage.setItem('quizUser', JSON.stringify({ nickname: "Админ", team: -1, id: adminId, isAdmin: true }));
-            showGameScreen();
-            document.getElementById('adminPanel').classList.remove('hidden');
-            startPolling();
-            showWaitingScreen();
-        } else {
-            alert("Неверный пароль");
-        }
+async function adminLogin(password) {
+    if (password !== "admin123") {
+        alert("Неверный пароль");
+        return;
     }
+    try {
+        const adminId = "admin_" + Date.now();
+        currentUser = { nickname: "Админ", team: -1, isAdmin: true, id: adminId };
+        localStorage.setItem('quizUser', JSON.stringify(currentUser));
+        showGameScreen();
+        document.getElementById('adminPanel').classList.remove('hidden');
+        startPolling();
+        showWaitingScreen();
+    } catch (error) {
+        console.error("Ошибка входа админа:", error);
+        alert("Ошибка входа. Попробуйте позже.");
+    }
+}
 
     function showGameScreen() {
         document.getElementById('loginScreen').classList.add('hidden');
@@ -908,34 +928,48 @@
     const firstBtn = document.querySelector('#loginTeamButtons .team-btn');
     if(firstBtn) firstBtn.classList.add('selected');
 
-    // Восстановление сессии
-    const saved = localStorage.getItem('quizUser');
-    if(saved) {
-        try {
-            const u = JSON.parse(saved);
-            if(u.isAdmin) {
+    
+    // ==================== ВОССТАНОВЛЕНИЕ СЕССИИ ====================
+const saved = localStorage.getItem('quizUser');
+if (saved) {
+    try {
+        const u = JSON.parse(saved);
+        if (u.isAdmin) {
+            currentUser = u;
+            showGameScreen();
+            document.getElementById('adminPanel').classList.remove('hidden');
+        } else {
+            // Проверяем, существует ли запись игрока
+            restGet(`players/${u.id}`).then(async (playerData) => {
+                if (!playerData) {
+                    // Если игрока нет в базе, создаём заново
+                    await restPut(`players/${u.id}`, { 
+                        nickname: u.nickname, 
+                        team: u.team, 
+                        score: 0, 
+                        isAdmin: false 
+                    }).catch(e => console.warn("Не удалось восстановить игрока:", e));
+                } else {
+                    // Синхронизируем команду, если она изменилась
+                    if (playerData.team !== u.team) {
+                        u.team = playerData.team;
+                        localStorage.setItem('quizUser', JSON.stringify(u));
+                    }
+                }
                 currentUser = u;
                 showGameScreen();
-                document.getElementById('adminPanel').classList.remove('hidden');
-            } else {
+            }).catch(error => {
+                console.error("Ошибка восстановления сессии:", error);
+                // Если не удалось проверить Firebase, всё равно показываем экран (оффлайн-режим не поддерживается, но хотя бы не зависаем)
                 currentUser = u;
-                restGet(`players/${u.id}`).then(async (playerData) => {
-                    if(!playerData) {
-                        await restPut(`players/${u.id}`, { nickname: u.nickname, team: u.team, score: 0, isAdmin: false });
-                    } else {
-                        if(playerData.team !== u.team) {
-                            currentUser.team = playerData.team;
-                            u.team = playerData.team;
-                            localStorage.setItem('quizUser', JSON.stringify(u));
-                        }
-                    }
-                    showGameScreen();
-                }).catch(() => {
-                    showGameScreen();
-                });
-            }
-        } catch(e) { console.error(e); }
+                showGameScreen();
+            });
+        }
+    } catch (e) {
+        console.error("Ошибка парсинга сохранённой сессии:", e);
+        localStorage.removeItem('quizUser');
     }
+}
 </script>
 </body>
 </html>
