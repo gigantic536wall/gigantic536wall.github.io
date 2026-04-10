@@ -237,17 +237,28 @@
     }
 
     async function updateAdminTeamsDisplay() {
-        const players = await restGet('players') || {};
-        const teams = [[], [], [], []];
-        for(let id in players) {
-            const p = players[id];
-            if(p && p.team >= 0 && p.team < 4 && !p.isAdmin) teams[p.team].push(p.nickname);
-        }
-        const container = document.getElementById('adminTeamsStatus');
-        if(container) {
-            container.innerHTML = '<h3>Игроки по командам:</h3>' + teams.map((t, i) => `<div class="team-display"><strong>Команда ${i+1}</strong>: ${t.join(', ') || 'нет'}</div>`).join('');
+    const players = await restGet('players') || {};
+    const teams = [[], [], [], []];
+    const teamsScores = [0, 0, 0, 0];
+    for(let id in players) {
+        const p = players[id];
+        if(p && p.team >= 0 && p.team < 4 && !p.isAdmin) {
+            teams[p.team].push(p.nickname);
+            teamsScores[p.team] += (p.score || 0);
         }
     }
+    const container = document.getElementById('adminTeamsStatus');
+    if(container) {
+        let html = '<h3>Игроки по командам (очки):</h3>';
+        for(let i=0; i<4; i++) {
+            html += `<div class="team-display">
+                <strong>Команда ${i+1}</strong> — <span style="color: #2ecc71; font-weight: bold;">${teamsScores[i]} очков</span><br>
+                ${teams[i].join(', ') || 'нет'}
+            </div>`;
+        }
+        container.innerHTML = html;
+    }
+}
 
     async function updateAdminAnswersPanel() {
         const container = document.getElementById('adminAnswersPanel');
@@ -322,6 +333,7 @@
                     const points = [4, 3, 2, 1][step];
                     await awardPoints(playerId, points);
                     await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+                    updateAdminTeamsDisplay();
                     updateAdminAnswersPanel();
                 });
             });
@@ -331,6 +343,7 @@
                     const qIdx = btn.getAttribute('data-q');
                     await awardPoints(playerId, -1);
                     await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+                    updateAdminTeamsDisplay();
                     updateAdminAnswersPanel();
                 });
             });
