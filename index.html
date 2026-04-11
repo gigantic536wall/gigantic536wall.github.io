@@ -1100,257 +1100,136 @@
     }
 
     async function startAnswersReview() {
-        if (!currentUser?.isAdmin) return;
-        const round = roundsData[0]; // первый раунд (картинки)
-        if (!round || round.type !== "image_sequence") return;
-        
-        await restPut('gameState/answersReview', {
-            active: true,
-            roundIndex: 0,
-            currentSlide: 0,
-            totalSlides: round.questions.length
-        });
-        showAnswerSlide(0);
-    }
+    if (!currentUser?.isAdmin) return;
+    const round = roundsData[currentRound];
+    if (!round) return;
 
-    function showAnswerSlide(slideIndex) {
-        if (reviewTimerInterval) clearInterval(reviewTimerInterval);
-        const round = roundsData[0];
-        const question = round.questions[slideIndex];
-        const container = document.getElementById('answersReviewContent');
-        if (!container) return;
-        
+    await restPut('gameState/answersReview', {
+        active: true,
+        roundIndex: currentRound,
+        currentSlide: 0,
+        totalSlides: round.questions.length
+    });
+    showAnswerSlide(0);
+}
+
+   function showAnswerSlide(slideIndex) {
+    if (reviewTimerInterval) clearInterval(reviewTimerInterval);
+    const round = roundsData[currentRound];
+    const question = round.questions[slideIndex];
+    const container = document.getElementById('answersReviewContent');
+    if (!container) return;
+
+    let contentHtml = '';
+    if (round.type === 'image_sequence') {
         let imagesHtml = '';
         question.images.forEach(img => {
             imagesHtml += `<img src="${img}" class="round-image" style="max-width:200px; margin:5px;">`;
         });
-        
-        container.innerHTML = `
+        contentHtml = `
             <h2>${round.name} — Правильный ответ ${slideIndex+1}/${round.questions.length}</h2>
             <div class="answers-review-container">${imagesHtml}</div>
             <div class="correct-answer-big">${question.correctAnswer}</div>
-            <div class="timer" id="reviewTimer">10</div>
         `;
-        container.setAttribute('data-slide', slideIndex);
-        
-        if (currentUser?.isAdmin) {
-            let timeLeft = 10;
-            const timerDiv = document.getElementById('reviewTimer');
-            reviewTimerInterval = setInterval(async () => {
-                timeLeft--;
-                if (timerDiv) timerDiv.innerText = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(reviewTimerInterval);
-                    const nextIndex = slideIndex + 1;
-                    if (nextIndex < round.questions.length) {
-                        await restPatch('gameState/answersReview', { currentSlide: nextIndex });
-                        showAnswerSlide(nextIndex);
-                    } else {
-                        await restDelete('gameState/answersReview');
-                        document.getElementById('answersReviewScreen').classList.add('hidden');
-                        showWaitingScreen();
-                    }
-                }
-            }, 1000);
-        }
+    } else if (round.type === 'video') {
+        contentHtml = `
+            <h2>${round.name} — Правильный ответ ${slideIndex+1}/${round.questions.length}</h2>
+            <video id="reviewVideo" class="video-player" autoplay controlsList="nodownload" oncontextmenu="return false;">
+                <source src="${question.video}" type="video/mp4">
+                Ваш браузер не поддерживает видео.
+            </video>
+            <div class="correct-answer-big">${question.correctAnswer}</div>
+        `;
+    } else { // quiz
+        contentHtml = `
+            <h2>${round.name} — Правильный ответ ${slideIndex+1}/${round.questions.length}</h2>
+            <div style="font-size:24px; margin:20px;">${question.text}</div>
+            <div class="correct-answer-big">${question.options[question.correct]}</div>
+        `;
     }
+    contentHtml += `<div class="timer" id="reviewTimer">15</div>`;
+    container.innerHTML = contentHtml;
+    container.setAttribute('data-slide', slideIndex);
 
-    async function showFinalResults() {
-        document.getElementById('waitingScreen').classList.add('hidden');
-        document.getElementById('quizScreen').classList.add('hidden');
-        document.getElementById('pauseScreen').classList.add('hidden');
-        document.getElementById('answersReviewScreen').classList.add('hidden');
-        document.getElementById('resultScreen').classList.remove('hidden');
-        const players = await restGet('players') || {};
-        let teamsScores = [0,0,0,0];
-        for(let id in players) {
-            let p = players[id];
-            if(p && p.team >= 0 && p.team < 4 && !p.isAdmin) {
-                teamsScores[p.team] += (p.score || 0);
-            }
-        }
-        let html = '<h3>Итоговые результаты команд:</h3>';
-        for(let i=0; i<4; i++) html += `<div class="team-display">Команда ${i+1}: ${teamsScores[i]} очков</div>`;
-        document.getElementById('finalResults').innerHTML = html;
-    }
+    // Применяем громкость к видео, если оно есть
+    const video = document.getElementById('reviewVideo');
+    if (video) applyVolumeToVideo(video);
 
-    function showWaitingScreen() {
-        document.getElementById('waitingScreen').classList.remove('hidden');
-        document.getElementById('quizScreen').classList.add('hidden');
-        document.getElementById('pauseScreen').classList.add('hidden');
-        document.getElementById('answersReviewScreen').classList.add('hidden');
-        document.getElementById('resultScreen').classList.add('hidden');
-        if(currentUser && !currentUser.isAdmin) {
-            const changeBlock = document.getElementById('changeTeamBlock');
-            if(changeBlock) changeBlock.classList.remove('hidden');
-            const btns = document.querySelectorAll('#changeTeamButtons .team-btn');
-            btns.forEach(btn => {
-                if(parseInt(btn.dataset.team) === currentUser.team) btn.classList.add('selected');
-                else btn.classList.remove('selected');
-            });
-        } else if(currentUser && currentUser.isAdmin) {
-            document.getElementById('changeTeamBlock')?.classList.add('hidden');
-        }
-    }
-
-    function startPolling() {
-        if (pollingInterval) clearInterval(pollingInterval);
-        pollingInterval = setInterval(async () => {
-            try {
-                const state = await restGet('gameState');
-                const pauseState = await restGet('gameState/pause');
-                const reviewState = await restGet('gameState/answersReview');
-
-                if (reviewState && reviewState.active) {
-                    document.getElementById('waitingScreen')?.classList.add('hidden');
-                    document.getElementById('quizScreen')?.classList.add('hidden');
-                    document.getElementById('pauseScreen')?.classList.add('hidden');
-                    document.getElementById('answersReviewScreen')?.classList.remove('hidden');
-                    
-                    if (!currentUser?.isAdmin) {
-                        const round = roundsData[reviewState.roundIndex];
-                        const question = round.questions[reviewState.currentSlide];
-                        const container = document.getElementById('answersReviewContent');
-                        let imagesHtml = '';
-                        question.images.forEach(img => {
-                            imagesHtml += `<img src="${img}" class="round-image" style="max-width:200px; margin:5px;">`;
-                        });
-                        container.innerHTML = `
-                            <h2>${round.name} — Правильный ответ ${reviewState.currentSlide+1}/${reviewState.totalSlides}</h2>
-                            <div class="answers-review-container">${imagesHtml}</div>
-                            <div class="correct-answer-big">${question.correctAnswer}</div>
-                        `;
-                    } else {
-                        const lastSlide = document.getElementById('answersReviewContent')?.getAttribute('data-slide');
-                        if (lastSlide != reviewState.currentSlide) {
-                            showAnswerSlide(reviewState.currentSlide);
-                        }
-                    }
-                    return;
+    // Таймер только для админа
+    if (currentUser?.isAdmin) {
+        let timeLeft = 15;
+        const timerDiv = document.getElementById('reviewTimer');
+        reviewTimerInterval = setInterval(async () => {
+            timeLeft--;
+            if (timerDiv) timerDiv.innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(reviewTimerInterval);
+                const nextIndex = slideIndex + 1;
+                if (nextIndex < round.questions.length) {
+                    await restPatch('gameState/answersReview', { currentSlide: nextIndex });
+                    showAnswerSlide(nextIndex);
                 } else {
-                    document.getElementById('answersReviewScreen')?.classList.add('hidden');
-                }
-
-                const globalPause = await restGet('gameState/globalPause');
-                if (globalPause && globalPause.active) {
-                    if (currentUser?.isAdmin) {
-                        document.getElementById('globalPauseBtn').classList.add('hidden');
-                        document.getElementById('globalResumeBtn').classList.remove('hidden');
-                    }
-                } else {
-                    if (currentUser?.isAdmin) {
-                        document.getElementById('globalPauseBtn').classList.remove('hidden');
-                        document.getElementById('globalResumeBtn').classList.add('hidden');
-                    }
-                }
-
-                if (state && state.reset) {
-                    if (!currentUser || !currentUser.isAdmin) {
-                        localStorage.removeItem('quizUser');
-                        location.reload();
-                    }
-                    return;
-                }
-
-                if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
-                    gameActive = true; roundInProgress = true;
-                    currentRound = state.currentRound; currentQuestionIdx = state.currentQuestion || 0;
-                    if (currentRound < roundsData.length) {
-                        showCurrentQuestion();
-                        document.getElementById('quizScreen')?.classList.remove('hidden');
-                        document.getElementById('waitingScreen')?.classList.add('hidden');
-                        document.getElementById('pauseScreen')?.classList.add('hidden');
-                    } else {
-                        showFinalResults();
-                    }
-                } else if (state && !state.active && gameActive && !pauseActive) {
-                    gameActive = false; roundInProgress = false;
+                    await restDelete('gameState/answersReview');
+                    document.getElementById('answersReviewScreen').classList.add('hidden');
                     showWaitingScreen();
-                    if (currentUser?.isAdmin) await updateAdminAnswersPanel();
-                } else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
-                    // Синхронизация для image_sequence
-                    if (roundsData[currentRound]?.type === "image_sequence") {
-                        if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
-                            if (state.imageStep !== imageStep) {
-                                if (timerInterval) clearInterval(timerInterval);
-                                imageStep = state.imageStep;
-                                
-                                if (!currentUser?.isAdmin) {
-                                    const playerAns = await getPlayerAnswerAndCheckStatus();
-                                    if (playerAns.answered || playerAns.checked) {
-                                        questionAnswered = true;
-                                        answered = true;
-                                        currentAnswerText = playerAns.answer || currentAnswerText;
-                                    }
-                                }
-                                
-                                const round = roundsData[currentRound];
-                                const question = round.questions[currentQuestionIdx];
-                                const startTime = (imageStep === 3) ? 12 : 8;
-                                startImageQuestion(question, questionAnswered, startTime);
-                            }
-                        }
-                    }
                 }
-
-                if (pauseState) {
-                    const now = Date.now();
-                    const shouldEndPause = pauseState.skip || (pauseState.endTime && now >= pauseState.endTime);
-
-                    if (shouldEndPause) {
-                        if (pauseActive) {
-                            clearInterval(pauseInterval);
-                            pauseActive = false;
-                            isWaitingForNextQuestion = false;
-                            document.getElementById('pauseScreen')?.classList.add('hidden');
-                            if (currentQuestionIdx + 1 < roundsData[currentRound].questions.length) {
-                                currentQuestionIdx++;
-                                showCurrentQuestion();
-                                document.getElementById('quizScreen')?.classList.remove('hidden');
-                            } else {
-                                finishRound();
-                            }
-                        }
-                        if (currentUser?.isAdmin || pauseState.skip) {
-                            await restDelete('gameState/pause');
-                        }
-                    } else if (pauseState.active && !pauseActive) {
-                        if (!currentUser?.isAdmin) {
-                            pauseActive = true;
-                            isWaitingForNextQuestion = true;
-                            document.getElementById('pauseTitle').innerText = "⏸️ Пауза между вопросами";
-                            document.getElementById('pauseMessage').innerHTML = "Следующий вопрос начнётся через:";
-                            document.getElementById('skipPauseBtn')?.classList.add('hidden');
-                            document.getElementById('pauseScreen')?.classList.remove('hidden');
-                            document.getElementById('quizScreen')?.classList.add('hidden');
-                            
-                            let remaining = Math.max(0, Math.ceil((pauseState.endTime - now) / 1000));
-                            const timerDiv = document.getElementById('pauseTimer');
-                            timerDiv.innerText = remaining;
-                            
-                            pauseInterval = setInterval(() => {
-                                remaining--;
-                                timerDiv.innerText = remaining;
-                                if (remaining <= 0) {
-                                    clearInterval(pauseInterval);
-                                }
-                            }, 1000);
-                        }
-                    }
-                }
-
-                await updateTeamsDisplay();
-                if (currentUser?.isAdmin) {
-                    await updateAdminTeamsDisplay();
-                    if ((roundsData[currentRound]?.type === "image_sequence" || roundsData[currentRound]?.type === "video") && currentRound >= 0 && currentRound < roundsData.length) {
-                        await updateAdminAnswersPanel();
-                    }
-                }
-            } catch (e) { 
-                console.warn("⚠️ Ошибка опроса Firebase:", e); 
             }
-        }, 500);
+        }, 1000);
     }
+}
+
+// Модифицированный блок опроса (polling) для поддержки любого раунда
+// (заменяем существующий участок с проверкой reviewState)
+if (reviewState && reviewState.active) {
+    document.getElementById('waitingScreen')?.classList.add('hidden');
+    document.getElementById('quizScreen')?.classList.add('hidden');
+    document.getElementById('pauseScreen')?.classList.add('hidden');
+    document.getElementById('answersReviewScreen')?.classList.remove('hidden');
+    
+    const round = roundsData[reviewState.roundIndex];
+    const question = round.questions[reviewState.currentSlide];
+    const container = document.getElementById('answersReviewContent');
+    
+    if (!currentUser?.isAdmin) {
+        // Для игроков – просто показываем слайд без таймера
+        let contentHtml = '';
+        if (round.type === 'image_sequence') {
+            let imagesHtml = '';
+            question.images.forEach(img => imagesHtml += `<img src="${img}" class="round-image" style="max-width:200px; margin:5px;">`);
+            contentHtml = `
+                <h2>${round.name} — Правильный ответ ${reviewState.currentSlide+1}/${reviewState.totalSlides}</h2>
+                <div class="answers-review-container">${imagesHtml}</div>
+                <div class="correct-answer-big">${question.correctAnswer}</div>
+            `;
+        } else if (round.type === 'video') {
+            contentHtml = `
+                <h2>${round.name} — Правильный ответ ${reviewState.currentSlide+1}/${reviewState.totalSlides}</h2>
+                <video class="video-player" autoplay controlsList="nodownload" oncontextmenu="return false;">
+                    <source src="${question.video}" type="video/mp4">
+                </video>
+                <div class="correct-answer-big">${question.correctAnswer}</div>
+            `;
+        } else {
+            contentHtml = `
+                <h2>${round.name} — Правильный ответ ${reviewState.currentSlide+1}/${reviewState.totalSlides}</h2>
+                <div style="font-size:24px; margin:20px;">${question.text}</div>
+                <div class="correct-answer-big">${question.options[question.correct]}</div>
+            `;
+        }
+        container.innerHTML = contentHtml;
+        const video = container.querySelector('video');
+        if (video) applyVolumeToVideo(video);
+    } else {
+        // Админ: синхронизация слайда
+        const lastSlide = container.getAttribute('data-slide');
+        if (lastSlide != reviewState.currentSlide) {
+            showAnswerSlide(reviewState.currentSlide);
+        }
+    }
+    return;
+} else {
+    document.getElementById('answersReviewScreen')?.classList.add('hidden');
+}
 
     async function joinGame(nickname, team) {
         try {
