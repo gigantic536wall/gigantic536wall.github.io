@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Аниме викторина | 8 раундов (GitHub Pages + REST API)</title>
+    <title>Аниме викторина | 8 раундов + выбор раунда</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -23,7 +23,7 @@
             padding: 20px;
             backdrop-filter: blur(10px);
         }
-        input, button {
+        input, button, select {
             padding: 12px 20px;
             margin: 10px;
             border-radius: 40px;
@@ -37,6 +37,11 @@
             font-weight: bold;
         }
         button:hover { background: #ff6b81; transform: scale(1.02); }
+        select {
+            background: #2c3e50;
+            color: white;
+            font-weight: bold;
+        }
         .team-buttons {
             display: flex;
             flex-wrap: wrap;
@@ -113,38 +118,46 @@
             font-weight: bold;
         }
         .audio-controls {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 15px;
-    padding: 10px 20px;
-    background: rgba(0,0,0,0.3);
-    border-radius: 40px;
-    margin-bottom: 20px;
-}
-.audio-icon {
-    font-size: 24px;
-    cursor: pointer;
-    user-select: none;
-}
-.volume-slider {
-    width: 120px;
-    cursor: pointer;
-}
-.test-sound-btn {
-    background: #2c3e50;
-    padding: 8px 16px;
-    font-size: 14px;
-}
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 15px;
+            padding: 10px 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 40px;
+            margin-bottom: 20px;
+        }
+        .audio-icon {
+            font-size: 24px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .volume-slider {
+            width: 120px;
+            cursor: pointer;
+        }
+        .test-sound-btn {
+            background: #2c3e50;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        .video-player {
+            max-width: 80%;
+            max-height: 300px;
+            border-radius: 15px;
+            margin: 20px auto;
+            display: block;
+            background: black;
+        }
     </style>
 </head>
 <body>
 <div class="container" id="app">
     <div class="audio-controls">
-    <span class="audio-icon" id="muteIcon">🔊</span>
-    <input type="range" id="volumeSlider" class="volume-slider" min="0" max="1" step="0.01" value="0.5">
-    <button id="testSoundBtn" class="test-sound-btn">🔔 Тест</button>
-</div>
+        <span class="audio-icon" id="muteIcon">🔊</span>
+        <input type="range" id="volumeSlider" class="volume-slider" min="0" max="1" step="0.01" value="0.5">
+        <button id="testSoundBtn" class="test-sound-btn">🔔 Тест</button>
+    </div>
     <h1>🎌 Аниме викторина | 8 раундов × 10 вопросов</h1>
     
     <div id="loginScreen">
@@ -202,7 +215,11 @@
         <h2>🔧 Панель администратора</h2>
         <div id="adminTeamsStatus"></div>
         <div id="adminRoundControls">
-            <button id="startGameBtn">🚀 СТАРТ ИГРЫ (раунд 1)</button>
+            <label for="roundSelect">Выберите раунд для старта:</label>
+            <select id="roundSelect">
+                <!-- Заполняется динамически -->
+            </select>
+            <button id="startSelectedRoundBtn">🚀 СТАРТ ВЫБРАННОГО РАУНДА</button>
             <button id="nextRoundBtn" class="hidden">➡️ Следующий раунд</button>
             <button id="showAnswersBtn" class="hidden">📋 Показать ответы раунда (слайд-шоу)</button>
             <button id="clearPlayersBtn" class="clear-players-btn">🧹 Очистить всех игроков</button>
@@ -221,127 +238,164 @@
     async function restPut(p,d) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); if(!r.ok) throw new Error(`PUT ${p} ${r.status}`); return r.json(); }
     async function restPatch(p,d) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); if(!r.ok) throw new Error(`PATCH ${p} ${r.status}`); return r.json(); }
     async function restDelete(p) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'DELETE'}); if(!r.ok) throw new Error(`DELETE ${p} ${r.status}`); return r.json(); }
+
     // ========== АУДИО ПЛЕЕР ==========
-const bgMusic = new Audio('music/background.mp3'); // укажите путь к вашему файлу фоновой музыки
-bgMusic.loop = true;
-bgMusic.volume = 0.5;
-let musicEnabled = true;
+    const bgMusic = new Audio('music/background.mp3');
+    bgMusic.loop = true;
+    bgMusic.volume = 0.5;
+    let musicEnabled = true;
 
-// Функция для воспроизведения (нужно вызвать после взаимодействия пользователя)
-function initAudio() {
-    if (bgMusic.paused) {
-        bgMusic.play().catch(e => console.log("Автовоспроизведение заблокировано, ждём клика"));
+    function initAudio() {
+        if (bgMusic.paused) {
+            bgMusic.play().catch(e => console.log("Автовоспроизведение заблокировано, ждём клика"));
+        }
     }
-}
 
-// Элементы управления
-const muteIcon = document.getElementById('muteIcon');
-const volumeSlider = document.getElementById('volumeSlider');
-const testSoundBtn = document.getElementById('testSoundBtn');
+    const muteIcon = document.getElementById('muteIcon');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const testSoundBtn = document.getElementById('testSoundBtn');
 
-// Громкость
-volumeSlider.addEventListener('input', (e) => {
-    const vol = parseFloat(e.target.value);
-    bgMusic.volume = vol;
-    updateMuteIcon(vol);
-});
+    volumeSlider.addEventListener('input', (e) => {
+        const vol = parseFloat(e.target.value);
+        bgMusic.volume = vol;
+        updateMuteIcon(vol);
+    });
 
-function updateMuteIcon(vol) {
-    if (vol === 0) muteIcon.textContent = '🔇';
-    else if (vol < 0.3) muteIcon.textContent = '🔈';
-    else if (vol < 0.7) muteIcon.textContent = '🔉';
-    else muteIcon.textContent = '🔊';
-}
-
-// Mute/unmute по клику на иконку
-muteIcon.addEventListener('click', () => {
-    if (bgMusic.volume > 0) {
-        bgMusic.volume = 0;
-        volumeSlider.value = 0;
-        muteIcon.textContent = '🔇';
-    } else {
-        const newVol = 0.5;
-        bgMusic.volume = newVol;
-        volumeSlider.value = newVol;
-        updateMuteIcon(newVol);
+    function updateMuteIcon(vol) {
+        if (vol === 0) muteIcon.textContent = '🔇';
+        else if (vol < 0.3) muteIcon.textContent = '🔈';
+        else if (vol < 0.7) muteIcon.textContent = '🔉';
+        else muteIcon.textContent = '🔊';
     }
-});
 
-// Тестовый звук (короткий сигнал)
-testSoundBtn.addEventListener('click', () => {
-    const testAudio = new Audio('music/тестауд.mp3')
-    testAudio.volume = volumeSlider.value;
-    testAudio.play();
-});
+    muteIcon.addEventListener('click', () => {
+        if (bgMusic.volume > 0) {
+            bgMusic.volume = 0;
+            volumeSlider.value = 0;
+            muteIcon.textContent = '🔇';
+        } else {
+            const newVol = 0.5;
+            bgMusic.volume = newVol;
+            volumeSlider.value = newVol;
+            updateMuteIcon(newVol);
+        }
+    });
 
-// Запуск фоновой музыки при первом клике пользователя в любом месте
-document.body.addEventListener('click', function startMusicOnce() {
-    initAudio();
-    document.body.removeEventListener('click', startMusicOnce);
-}, { once: true });
+    testSoundBtn.addEventListener('click', () => {
+        const testAudio = new Audio('music/тестауд.mp3');
+        testAudio.volume = volumeSlider.value;
+        testAudio.play();
+    });
+
+    document.body.addEventListener('click', function startMusicOnce() {
+        initAudio();
+        document.body.removeEventListener('click', startMusicOnce);
+    }, { once: true });
 
     // ==================== ДАННЫЕ ИГРЫ ====================
     const roundsData = [
-        { type: "image_sequence", name: "Раунд 1: Угадай аниме по картинке", questions: [
-            { images: ["images/image1.png", "images/image2.png", "images/image3.png", "images/image4.png"], correctAnswer: "Реинкарнация безработного" },
-            { images: ["images/image1маг.png", "images/image2маг.png", "images/image3маг.png", "images/image4маг.png"], correctAnswer: "Магическая битва " },
-            { images: ["images/image1невест.png", "images/image2невест.png", "images/image3невест.png", "images/image4невест.png"], correctAnswer: "Пять невест" },
-            { images: ["images/images1джо.jpg", "images/images2джо.jpg", "images/images3джо.jpg", "images/images4джо.jpg"], correctAnswer: "ДжоДжо" },
-            { images: ["images/image1angel.png", "images/image2angel.png", "images/image3angel.png", "images/image4angel.png"], correctAnswer: "Ангел по соседству меня балует" },
-            { images: ["images/image1грех.png", "images/image2грех.png", "images/image3грех.png", "images/image4грех.png"], correctAnswer: "Семь смертных грехов" },
-            { images: ["images/image1лейм.png", "images/image2лейм.png", "images/image3лейм.png", "images/image4лейм.png"], correctAnswer: "Эксперименты Лэйн" },
-            { images: ["images/image1ток.png", "images/image2ток.png", "images/image3ток.png", "images/image4ток.png"], correctAnswer: "Токийский гуль" },
-            { images: ["images/image1цвет.png", "images/image2цвет.png", "images/image3цвет.png", "images/image4цвет.png"], correctAnswer: "Благоухающий цветок расцветает с достоинством" },
-            { images: ["images/image1тит.png", "images/image2тит.png", "images/image3тит.png", "images/image4тит.png"], correctAnswer: "Атака титанов" }
-        ] },
-        ...Array.from({length:7},(_,i)=> ({ type:"quiz", name:`Раунд ${i+2}: ${["Общие знания","Персонажи","Сюжеты","Манга","Студии","Озвучка","Финал"][i]}`, questions: generateQuizQuestions(i+2) }))
+        { 
+            type: "image_sequence", 
+            name: "Раунд 1: Угадай аниме по картинке", 
+            questions: [
+                { images: ["images/image1.png", "images/image2.png", "images/image3.png", "images/image4.png"], correctAnswer: "Реинкарнация безработного" },
+                { images: ["images/image1маг.png", "images/image2маг.png", "images/image3маг.png", "images/image4маг.png"], correctAnswer: "Магическая битва " },
+                { images: ["images/image1невест.png", "images/image2невест.png", "images/image3невест.png", "images/image4невест.png"], correctAnswer: "Пять невест" },
+                { images: ["images/images1джо.jpg", "images/images2джо.jpg", "images/images3джо.jpg", "images/images4джо.jpg"], correctAnswer: "ДжоДжо" },
+                { images: ["images/image1angel.png", "images/image2angel.png", "images/image3angel.png", "images/image4angel.png"], correctAnswer: "Ангел по соседству меня балует" },
+                { images: ["images/image1грех.png", "images/image2грех.png", "images/image3грех.png", "images/image4грех.png"], correctAnswer: "Семь смертных грехов" },
+                { images: ["images/image1лейм.png", "images/image2лейм.png", "images/image3лейм.png", "images/image4лейм.png"], correctAnswer: "Эксперименты Лэйн" },
+                { images: ["images/image1ток.png", "images/image2ток.png", "images/image3ток.png", "images/image4ток.png"], correctAnswer: "Токийский гуль" },
+                { images: ["images/image1цвет.png", "images/image2цвет.png", "images/image3цвет.png", "images/image4цвет.png"], correctAnswer: "Благоухающий цветок расцветает с достоинством" },
+                { images: ["images/image1тит.png", "images/image2тит.png", "images/image3тит.png", "images/image4тит.png"], correctAnswer: "Атака титанов" }
+            ] 
+        },
+        { type: "quiz", name: "Раунд 2: Общие знания", questions: generateQuizQuestions(2) },
+        { 
+            type: "video", 
+            name: "Раунд 3: Угадай аниме по отрывку опенинга", 
+            questions: [
+                { video: "videos/op1.mp4", correctAnswer: "Название аниме 1" },
+                { video: "videos/op2.mp4", correctAnswer: "Название аниме 2" },
+                { video: "videos/op3.mp4", correctAnswer: "Название аниме 3" },
+                { video: "videos/op4.mp4", correctAnswer: "Название аниме 4" },
+                { video: "videos/op5.mp4", correctAnswer: "Название аниме 5" },
+                { video: "videos/op6.mp4", correctAnswer: "Название аниме 6" },
+                { video: "videos/op7.mp4", correctAnswer: "Название аниме 7" },
+                { video: "videos/op8.mp4", correctAnswer: "Название аниме 8" },
+                { video: "videos/op9.mp4", correctAnswer: "Название аниме 9" },
+                { video: "videos/op10.mp4", correctAnswer: "Название аниме 10" }
+            ],
+            pauseDuration: 10 // секунд между вопросами
+        },
+        ...Array.from({length:5},(_,i)=> ({ type:"quiz", name:`Раунд ${i+4}: ${["Персонажи","Сюжеты","Манга","Студии","Озвучка"][i]}`, questions: generateQuizQuestions(i+4) }))
     ];
-    function generateQuizQuestions(roundNum){ return Array.from({length:10},(_,i)=>({ text:`Вопрос ${i+1} раунда ${roundNum}: Назовите аниме, где главного героя зовут Гоку?`, options:["Наруто","Драгон Болл","Ван Пис","Блич"], correct:1, points:2 })); }
+
+    function generateQuizQuestions(roundNum){ 
+        return Array.from({length:10},(_,i)=>({ 
+            text:`Вопрос ${i+1} раунда ${roundNum}: Назовите аниме, где главного героя зовут Гоку?`, 
+            options:["Наруто","Драгон Болл","Ван Пис","Блич"], 
+            correct:1, 
+            points:2 
+        })); 
+    }
+
+    // Заполняем выпадающий список раундов
+    function populateRoundSelect() {
+        const select = document.getElementById('roundSelect');
+        if (!select) return;
+        select.innerHTML = '';
+        roundsData.forEach((round, idx) => {
+            const option = document.createElement('option');
+            option.value = idx;
+            option.textContent = `${idx+1}. ${round.name}`;
+            select.appendChild(option);
+        });
+    }
 
     // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
-    let currentRound=0, currentQuestionIdx=0, gameActive=false, roundInProgress=false, pauseActive=false;
-    let currentUser=null, timerInterval=null, currentQuizTimer=null, pauseInterval=null;
-    let imageStep=0, answered=false, answerGivenAtStep=-1, userAnswerText="", currentQuestionObj=null, currentAnswerText="";
-    let pollingInterval=null, isWaitingForNextQuestion=false;
+    let currentRound = 0, currentQuestionIdx = 0, gameActive = false, roundInProgress = false, pauseActive = false;
+    let currentUser = null, timerInterval = null, currentQuizTimer = null, pauseInterval = null;
+    let imageStep = 0, answered = false, answerGivenAtStep = -1, userAnswerText = "", currentQuestionObj = null, currentAnswerText = "";
+    let pollingInterval = null, isWaitingForNextQuestion = false;
     let sessionRestored = false;
     let questionAnswered = false;
     let draftAnswers = {};
     let reviewTimerInterval = null;
     let globalPauseActive = false;
     let globalPauseRemaining = 0;
+    let videoElement = null; // для видео-раунда
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
     function showError(msg){ const d=document.getElementById('errorDisplay'); if(d){ d.innerText=msg; d.style.display='block'; setTimeout(()=>d.style.display='none',5000); } }
     async function awardPoints(playerId,delta){ const p=await restGet(`players/${playerId}`); if(p) await restPatch(`players/${playerId}`,{score:(p.score||0)+delta}); }
 
-
     async function setGlobalPause(active, remainingSeconds = null) {
-    const pauseData = { active };
-    if (remainingSeconds !== null) pauseData.remaining = remainingSeconds;
-    await restPut('gameState/globalPause', pauseData);
-}
+        const pauseData = { active };
+        if (remainingSeconds !== null) pauseData.remaining = remainingSeconds;
+        await restPut('gameState/globalPause', pauseData);
+    }
 
-async function clearGlobalPause() {
-    await restDelete('gameState/globalPause');
-}
+    async function clearGlobalPause() {
+        await restDelete('gameState/globalPause');
+    }
     
     async function getPlayerAnswerAndCheckStatus() {
-    if (!currentUser || currentUser.isAdmin) return { answered: false, checked: false, answer: '' };
-    try {
-        const ansPath = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
-        const chkPath = `players/${currentUser.id}/checkedAnswers/${currentRound}/q${currentQuestionIdx}`;
-        const [ans, checked] = await Promise.all([restGet(ansPath), restGet(chkPath)]);
-        return {
-            answered: ans?.answered || false,
-            checked: checked?.checked || false,
-            answer: ans?.answer || ''
-        };
-    } catch (e) {
-        return { answered: false, checked: false, answer: '' };
+        if (!currentUser || currentUser.isAdmin) return { answered: false, checked: false, answer: '' };
+        try {
+            const ansPath = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
+            const chkPath = `players/${currentUser.id}/checkedAnswers/${currentRound}/q${currentQuestionIdx}`;
+            const [ans, checked] = await Promise.all([restGet(ansPath), restGet(chkPath)]);
+            return {
+                answered: ans?.answered || false,
+                checked: checked?.checked || false,
+                answer: ans?.answer || ''
+            };
+        } catch (e) {
+            return { answered: false, checked: false, answer: '' };
+        }
     }
-}
 
-    
     async function updateTeamsDisplay() {
         const players = await restGet('players') || {};
         const teams = [[], [], [], []];
@@ -356,32 +410,31 @@ async function clearGlobalPause() {
     }
 
     async function updateAdminTeamsDisplay() {
-    const players = await restGet('players') || {};
-    const teams = [[], [], [], []];
-    const teamsScores = [0, 0, 0, 0];
-    for(let id in players) {
-        const p = players[id];
-        if(p && p.team >= 0 && p.team < 4 && !p.isAdmin) {
-            teams[p.team].push(p.nickname);
-            teamsScores[p.team] += (p.score || 0);
+        const players = await restGet('players') || {};
+        const teams = [[], [], [], []];
+        const teamsScores = [0, 0, 0, 0];
+        for(let id in players) {
+            const p = players[id];
+            if(p && p.team >= 0 && p.team < 4 && !p.isAdmin) {
+                teams[p.team].push(p.nickname);
+                teamsScores[p.team] += (p.score || 0);
+            }
+        }
+        const container = document.getElementById('adminTeamsStatus');
+        if(container) {
+            let html = '<h3>Игроки по командам (очки):</h3>';
+            for(let i=0; i<4; i++) {
+                html += `<div class="team-display">
+                    <strong>Команда ${i+1}</strong> — <span style="color: #2ecc71; font-weight: bold;">${teamsScores[i]} очков</span><br>
+                    ${teams[i].join(', ') || 'нет'}
+                </div>`;
+            }
+            container.innerHTML = html;
         }
     }
-    const container = document.getElementById('adminTeamsStatus');
-    if(container) {
-        let html = '<h3>Игроки по командам (очки):</h3>';
-        for(let i=0; i<4; i++) {
-            html += `<div class="team-display">
-                <strong>Команда ${i+1}</strong> — <span style="color: #2ecc71; font-weight: bold;">${teamsScores[i]} очков</span><br>
-                ${teams[i].join(', ') || 'нет'}
-            </div>`;
-        }
-        container.innerHTML = html;
-    }
-}
 
     async function updateAdminAnswersPanel() {
         const container = document.getElementById('adminAnswersPanel');
-      
         if (!container) return;
         if (currentRound < 0 || currentRound >= roundsData.length) {
             container.innerHTML = `<p>Ожидание начала раунда...</p>`;
@@ -389,7 +442,7 @@ async function clearGlobalPause() {
         }
         const round = roundsData[currentRound];
         
-        if (round.type === "image_sequence") {
+        if (round.type === "image_sequence" || round.type === "video") {
             const players = await restGet('players') || {};
             let html = `<h3>Ответы игроков на ${round.name} (вопрос ${currentQuestionIdx+1}/${round.questions.length})</h3>`;
             
@@ -405,7 +458,7 @@ async function clearGlobalPause() {
                     <th>Игрок</th>
                     <th>Команда</th>
                     <th>Вопрос</th>
-                    <th>Картинка №</th>
+                    ${round.type === "image_sequence" ? "<th>Картинка №</th>" : ""}
                     <th>Ответ игрока</th>
                     <th>Правильный ответ</th>
                     <th>Действие</th>
@@ -421,7 +474,7 @@ async function clearGlobalPause() {
                         const ans = answers[qIdx];
                         if (ans && ans.answered) {
                             anyAnswer = true;
-                            const points = [4, 3, 2, 1][ans.step];
+                            const points = round.type === "image_sequence" ? [4,3,2,1][ans.step] : 2; // для видео фиксированные баллы
                             const questionIndex = parseInt(qIdx.replace(/\D/g, '')) || 0;
                             const questionObj = round.questions[questionIndex];
                             const correctAns = questionObj ? questionObj.correctAnswer : '—';
@@ -429,11 +482,11 @@ async function clearGlobalPause() {
                                 <td>${p.nickname}</td>
                                 <td>Команда ${p.team + 1}</td>
                                 <td>${questionIndex + 1}</td>
-                                <td>${ans.step + 1}</td>
+                                ${round.type === "image_sequence" ? `<td>${ans.step + 1}</td>` : ""}
                                 <td>${ans.answer}</td>
                                 <td><span style="color: #2ecc71;">${correctAns}</span></td>
                                 <td>
-                                    <button class="mark-correct" data-player="${id}" data-q="${qIdx}" data-step="${ans.step}">✅ +${points}</button>
+                                    <button class="mark-correct" data-player="${id}" data-q="${qIdx}" data-step="${ans.step || 0}">✅ +${points}</button>
                                     <button class="mark-wrong" data-player="${id}" data-q="${qIdx}">❌ -1</button>
                                 </td>
                             </tr>`;
@@ -441,7 +494,7 @@ async function clearGlobalPause() {
                     }
                 }
             }
-            if (!anyAnswer) html += `<tr><td colspan="7">Пока нет ответов</td></tr>`;
+            if (!anyAnswer) html += `<tr><td colspan="${round.type === 'image_sequence' ? '7' : '6'}">Пока нет ответов</td></tr>`;
             html += `</table>`;
             container.innerHTML = html;
             
@@ -450,25 +503,25 @@ async function clearGlobalPause() {
                     const playerId = btn.getAttribute('data-player');
                     const qIdx = btn.getAttribute('data-q');
                     const step = parseInt(btn.getAttribute('data-step'));
-                    const points = [4, 3, 2, 1][step];
+                    const points = round.type === "image_sequence" ? [4, 3, 2, 1][step] : 2;
                     await awardPoints(playerId, points);
-await restPut(`players/${playerId}/checkedAnswers/${currentRound}/${qIdx}`, { checked: true, timestamp: Date.now() });
-await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
-updateAdminTeamsDisplay();
-updateAdminAnswersPanel();
+                    await restPut(`players/${playerId}/checkedAnswers/${currentRound}/${qIdx}`, { checked: true, timestamp: Date.now() });
+                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+                    updateAdminTeamsDisplay();
+                    updateAdminAnswersPanel();
                 });
             });
             document.querySelectorAll('.mark-wrong').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        const playerId = btn.getAttribute('data-player');
-        const qIdx = btn.getAttribute('data-q');
-        await awardPoints(playerId, -1);
-        await restPut(`players/${playerId}/checkedAnswers/${currentRound}/${qIdx}`, { checked: true, timestamp: Date.now() });
-        await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
-        updateAdminTeamsDisplay();
-        updateAdminAnswersPanel();
-    });
-});
+                btn.addEventListener('click', async () => {
+                    const playerId = btn.getAttribute('data-player');
+                    const qIdx = btn.getAttribute('data-q');
+                    await awardPoints(playerId, -1);
+                    await restPut(`players/${playerId}/checkedAnswers/${currentRound}/${qIdx}`, { checked: true, timestamp: Date.now() });
+                    await restDelete(`players/${playerId}/roundAnswers/${currentRound}/${qIdx}`);
+                    updateAdminTeamsDisplay();
+                    updateAdminAnswersPanel();
+                });
+            });
         } else {
             container.innerHTML = `<p>Раунд ${round.name} — автоматическая проверка (админ не требуется)</p>`;
         }
@@ -493,6 +546,14 @@ updateAdminAnswersPanel();
             delete draftAnswers[`${currentRound}_${currentQuestionIdx}`];
             currentQuestionObj = question;
             restoreImageState(question);
+        } else if (round.type === "video") {
+            // подготовка видео-вопроса
+            answered = false;
+            questionAnswered = false;
+            currentAnswerText = "";
+            delete draftAnswers[`${currentRound}_${currentQuestionIdx}`];
+            currentQuestionObj = question;
+            startVideoQuestion(question);
         } else {
             container.innerHTML = `
                 <div class="question-block">
@@ -515,25 +576,25 @@ updateAdminAnswersPanel();
             timerDiv.className = "timer";
             timerDiv.innerText = timeLeft;
             container.appendChild(timerDiv);
-           const tickQuiz = async () => {
-    if(!gameActive || !roundInProgress) return;
-    const pauseState = await restGet('gameState/globalPause');
-    if (pauseState && pauseState.active) {
-        currentQuizTimer = setTimeout(tickQuiz, 500);
-        return;
-    }
-    timeLeft--;
-    if(timerDiv) timerDiv.innerText = timeLeft;
-    if(timeLeft <= 0) {
-        if(roundInProgress) {
-            alert("Время вышло!");
-            nextQuestionOrRound();
-        }
-    } else {
-        currentQuizTimer = setTimeout(tickQuiz, 1000);
-    }
-};
-currentQuizTimer = setTimeout(tickQuiz, 1000);
+            const tickQuiz = async () => {
+                if(!gameActive || !roundInProgress) return;
+                const pauseState = await restGet('gameState/globalPause');
+                if (pauseState && pauseState.active) {
+                    currentQuizTimer = setTimeout(tickQuiz, 500);
+                    return;
+                }
+                timeLeft--;
+                if(timerDiv) timerDiv.innerText = timeLeft;
+                if(timeLeft <= 0) {
+                    if(roundInProgress) {
+                        alert("Время вышло!");
+                        nextQuestionOrRound();
+                    }
+                } else {
+                    currentQuizTimer = setTimeout(tickQuiz, 1000);
+                }
+            };
+            currentQuizTimer = setTimeout(tickQuiz, 1000);
         }
     }
 
@@ -555,20 +616,20 @@ currentQuizTimer = setTimeout(tickQuiz, 1000);
         }
         
         if (!currentUser?.isAdmin) {
-    const playerAns = await getPlayerAnswerAndCheckStatus();
-    if (playerAns.answered || playerAns.checked) {
-        questionAnswered = true;
-        answered = true;
-        currentAnswerText = playerAns.answer || currentAnswerText;
-    } else {
-        questionAnswered = false;
-        answered = false;
-        const draftKey = `${currentRound}_${currentQuestionIdx}`;
-        if (draftAnswers[draftKey]) {
-            currentAnswerText = draftAnswers[draftKey];
+            const playerAns = await getPlayerAnswerAndCheckStatus();
+            if (playerAns.answered || playerAns.checked) {
+                questionAnswered = true;
+                answered = true;
+                currentAnswerText = playerAns.answer || currentAnswerText;
+            } else {
+                questionAnswered = false;
+                answered = false;
+                const draftKey = `${currentRound}_${currentQuestionIdx}`;
+                if (draftAnswers[draftKey]) {
+                    currentAnswerText = draftAnswers[draftKey];
+                }
+            }
         }
-    }
-}
         
         if (imageStep >= 4) {
             startPauseBetweenQuestions();
@@ -635,13 +696,13 @@ currentQuizTimer = setTimeout(tickQuiz, 1000);
             if(currentAnswerText) answerInput.value = currentAnswerText;
             
             submitBtn.onclick = async () => {
-                   if (!currentUser?.isAdmin) {
-    const status = await getPlayerAnswerAndCheckStatus();
-    if (status.checked || status.answered) {
-        alert("Вы уже ответили или ваш ответ проверен.");
-        return;
-    }
-}
+                if (!currentUser?.isAdmin) {
+                    const status = await getPlayerAnswerAndCheckStatus();
+                    if (status.checked || status.answered) {
+                        alert("Вы уже ответили или ваш ответ проверен.");
+                        return;
+                    }
+                }
                 if(questionAnswered) return;
                 const answer = answerInput.value.trim();
                 if(answer === "") { alert("Введите ответ"); return; }
@@ -678,69 +739,193 @@ currentQuizTimer = setTimeout(tickQuiz, 1000);
             };
         }
      
-        
-       if(timerInterval) clearInterval(timerInterval);
-const tick = async () => {
-    if(!gameActive || !roundInProgress) return;
-    
-    // Проверка глобальной паузы
-    const pauseState = await restGet('gameState/globalPause');
-    if (pauseState && pauseState.active) {
-        if (!globalPauseActive) {
-            globalPauseActive = true;
-            globalPauseRemaining = timeLeft;
-        }
-        timerInterval = setTimeout(tick, 500);
-        return;
-    } else {
-        if (globalPauseActive) {
-            globalPauseActive = false;
-            // Восстанавливаем время, если админ передал новое remaining
-            if (pauseState && pauseState.remaining !== undefined) {
-                timeLeft = pauseState.remaining;
-            }
-        }
-    }
-    
-    timeLeft--;
-    const timerDiv = document.getElementById('timer');
-    if(timerDiv) timerDiv.innerText = timeLeft;
-    
-    if(timeLeft <= 0) {
-        if(currentUser?.isAdmin) {
-            imageStep++;
-            const nextTime = (imageStep === 3) ? 12 : 8;
-            await restPut('gameState', {
-                active: true,
-                currentRound: currentRound,
-                currentQuestion: currentQuestionIdx,
-                imageStep: imageStep,
-                imageTimeLeft: nextTime,
-                answered: false,
-                questionAnswered: questionAnswered,
-                answerText: currentAnswerText
-            });
-            if(imageStep < 4) {
-                startImageQuestion(question, questionAnswered, nextTime);
+        if(timerInterval) clearInterval(timerInterval);
+        const tick = async () => {
+            if(!gameActive || !roundInProgress) return;
+            
+            const pauseState = await restGet('gameState/globalPause');
+            if (pauseState && pauseState.active) {
+                if (!globalPauseActive) {
+                    globalPauseActive = true;
+                    globalPauseRemaining = timeLeft;
+                }
+                timerInterval = setTimeout(tick, 500);
+                return;
             } else {
-                startPauseBetweenQuestions();
+                if (globalPauseActive) {
+                    globalPauseActive = false;
+                    if (pauseState && pauseState.remaining !== undefined) {
+                        timeLeft = pauseState.remaining;
+                    }
+                }
             }
-        }
-    } else {
+            
+            timeLeft--;
+            const timerDiv = document.getElementById('timer');
+            if(timerDiv) timerDiv.innerText = timeLeft;
+            
+            if(timeLeft <= 0) {
+                if(currentUser?.isAdmin) {
+                    imageStep++;
+                    const nextTime = (imageStep === 3) ? 12 : 8;
+                    await restPut('gameState', {
+                        active: true,
+                        currentRound: currentRound,
+                        currentQuestion: currentQuestionIdx,
+                        imageStep: imageStep,
+                        imageTimeLeft: nextTime,
+                        answered: false,
+                        questionAnswered: questionAnswered,
+                        answerText: currentAnswerText
+                    });
+                    if(imageStep < 4) {
+                        startImageQuestion(question, questionAnswered, nextTime);
+                    } else {
+                        startPauseBetweenQuestions();
+                    }
+                }
+            } else {
+                timerInterval = setTimeout(tick, 1000);
+            }
+        };
         timerInterval = setTimeout(tick, 1000);
     }
-};
-timerInterval = setTimeout(tick, 1000);
+
+    function startVideoQuestion(question) {
+        const round = roundsData[currentRound];
+        const container = document.getElementById('roundContent');
+        const timeLeft = 15; // длительность видео
+        
+        const draftKey = `${currentRound}_${currentQuestionIdx}`;
+        let displayText = currentAnswerText || (draftAnswers[draftKey] || '');
+        const inputDisabled = questionAnswered ? 'disabled' : '';
+        
+        container.innerHTML = `
+            <div class="image-round-container">
+                <h2>${round.name} | Вопрос ${currentQuestionIdx+1} из ${round.questions.length}</h2>
+                <div class="timer" id="timer">${timeLeft}</div>
+                <video id="questionVideo" class="video-player" autoplay controlsList="nodownload" oncontextmenu="return false;">
+                    <source src="${question.video}" type="video/mp4">
+                    Ваш браузер не поддерживает видео.
+                </video>
+                <div>
+                    <input type="text" id="answerInput" class="answer-input" placeholder="Введите название аниме" ${inputDisabled} value="${displayText.replace(/"/g, '&quot;')}">
+                    <button id="submitAnswerBtn" ${inputDisabled}>Ответить</button>
+                </div>
+                <p>🎬 Смотрите отрывок и угадывайте!</p>
+            </div>
+        `;
+        
+        const video = document.getElementById('questionVideo');
+        const answerInput = document.getElementById('answerInput');
+        const submitBtn = document.getElementById('submitAnswerBtn');
+        const timerDiv = document.getElementById('timer');
+        
+        videoElement = video;
+        
+        // Устанавливаем длительность видео 15 сек (если видео короче, зацикливать не будем)
+        video.addEventListener('loadedmetadata', () => {
+            if (video.duration < 15) {
+                // если видео короче, можно поставить loop, но мы просто будем ждать окончания
+            }
+        });
+        
+        if (!questionAnswered) {
+            answerInput.addEventListener('input', (e) => {
+                currentAnswerText = e.target.value;
+                draftAnswers[draftKey] = e.target.value;
+            });
+            
+            submitBtn.onclick = async () => {
+                if (!currentUser?.isAdmin) {
+                    const status = await getPlayerAnswerAndCheckStatus();
+                    if (status.checked || status.answered) {
+                        alert("Вы уже ответили или ваш ответ проверен.");
+                        return;
+                    }
+                }
+                if (questionAnswered) return;
+                const answer = answerInput.value.trim();
+                if (answer === "") { alert("Введите ответ"); return; }
+                
+                answered = true;
+                questionAnswered = true;
+                currentAnswerText = answer;
+                delete draftAnswers[draftKey];
+                
+                if (currentUser && !currentUser.isAdmin) {
+                    const path = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
+                    await restPut(path, { answered: true, answer: answer, timestamp: Date.now() });
+                }
+                
+                if (currentUser?.isAdmin) {
+                    await restPut('gameState', {
+                        active: true,
+                        currentRound: currentRound,
+                        currentQuestion: currentQuestionIdx,
+                        videoAnswered: true,
+                        answerText: answer
+                    });
+                }
+                
+                answerInput.disabled = true;
+                submitBtn.disabled = true;
+                video.pause();
+                
+                if (currentUser?.isAdmin) await updateAdminAnswersPanel();
+            };
+        }
+        
+        let remaining = timeLeft;
+        const tick = async () => {
+            if (!gameActive || !roundInProgress) return;
+            
+            const pauseState = await restGet('gameState/globalPause');
+            if (pauseState && pauseState.active) {
+                timerInterval = setTimeout(tick, 500);
+                return;
+            }
+            
+            remaining--;
+            timerDiv.innerText = remaining;
+            
+            if (remaining <= 0 || video.ended) {
+                // Время вышло или видео закончилось
+                if (!questionAnswered && !answered) {
+                    // Автоматически не отправляем, просто переходим к паузе
+                }
+                if (currentUser?.isAdmin) {
+                    startPauseBetweenQuestions(round.pauseDuration || 10);
+                }
+                clearInterval(timerInterval);
+            } else {
+                timerInterval = setTimeout(tick, 1000);
+            }
+        };
+        timerInterval = setTimeout(tick, 1000);
+        
+        // Обработчик окончания видео
+        video.addEventListener('ended', () => {
+            if (currentUser?.isAdmin) {
+                // Если видео закончилось раньше таймера, админ может форсировать паузу
+                if (!questionAnswered) {
+                    // Можно дать возможность ответить до конца таймера, но проще перейти к паузе
+                    startPauseBetweenQuestions(round.pauseDuration || 10);
+                }
+            }
+        });
     }
 
-    function startPauseBetweenQuestions() {
-        if (roundsData[currentRound].type !== "image_sequence") return;
+    function startPauseBetweenQuestions(customDuration = null) {
+        const round = roundsData[currentRound];
+        const pauseDuration = customDuration !== null ? customDuration : (round.type === "image_sequence" ? 15 : 10);
+        
         if (pauseInterval) clearInterval(pauseInterval);
         pauseActive = true;
         isWaitingForNextQuestion = true;
 
         if (currentUser && currentUser.isAdmin) {
-            const pauseEndTime = Date.now() + 15000;
+            const pauseEndTime = Date.now() + pauseDuration * 1000;
             restPut('gameState/pause', {
                 active: true,
                 endTime: pauseEndTime,
@@ -748,13 +933,13 @@ timerInterval = setTimeout(tick, 1000);
             });
         }
 
-        document.getElementById('pauseTitle').innerText = "⏸️ Пауза между аниме";
-        document.getElementById('pauseMessage').innerHTML = "Следующее аниме начнётся через:";
+        document.getElementById('pauseTitle').innerText = "⏸️ Пауза между вопросами";
+        document.getElementById('pauseMessage').innerHTML = `Следующий вопрос начнётся через:`;
         document.getElementById('skipPauseBtn').classList.remove('hidden');
         document.getElementById('pauseScreen').classList.remove('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
 
-        let remaining = 15;
+        let remaining = pauseDuration;
         const timerDiv = document.getElementById('pauseTimer');
         timerDiv.innerText = remaining;
 
@@ -769,7 +954,7 @@ timerInterval = setTimeout(tick, 1000);
                 pauseActive = false;
                 isWaitingForNextQuestion = false;
                 document.getElementById('pauseScreen').classList.add('hidden');
-                if (currentQuestionIdx + 1 < roundsData[currentRound].questions.length) {
+                if (currentQuestionIdx + 1 < round.questions.length) {
                     currentQuestionIdx++;
                     showCurrentQuestion();
                     document.getElementById('quizScreen').classList.remove('hidden');
@@ -778,35 +963,6 @@ timerInterval = setTimeout(tick, 1000);
                 }
             }
         }, 1000);
-    }
-
-    async function getPlayerAnswerForCurrentQuestion() {
-        if (!currentUser || currentUser.isAdmin) return { answered: false, answer: '' };
-        try {
-            const path = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
-            const ans = await restGet(path);
-            return ans || { answered: false, answer: '' };
-        } catch (e) {
-            return { answered: false, answer: '' };
-        }
-    }
-
-    function skipCurrentPause() {
-        if (!currentUser || !currentUser.isAdmin) return;
-        restPut('gameState/pause', { skip: true });
-        if (pauseInterval) clearInterval(pauseInterval);
-        pauseActive = false;
-        document.getElementById('pauseScreen').classList.add('hidden');
-        if (isWaitingForNextQuestion) {
-            isWaitingForNextQuestion = false;
-            if (currentQuestionIdx + 1 < roundsData[currentRound].questions.length) {
-                currentQuestionIdx++;
-                showCurrentQuestion();
-                document.getElementById('quizScreen').classList.remove('hidden');
-            } else {
-                finishRound();
-            }
-        }
     }
 
     async function answerQuiz(selectedIdx) {
@@ -827,7 +983,7 @@ timerInterval = setTimeout(tick, 1000);
     async function nextQuestionOrRound() {
         if(timerInterval) clearInterval(timerInterval);
         const round = roundsData[currentRound];
-        if(round.type !== "image_sequence") {
+        if(round.type !== "image_sequence" && round.type !== "video") {
             if(currentQuestionIdx + 1 < round.questions.length) {
                 currentQuestionIdx++;
                 showCurrentQuestion();
@@ -848,10 +1004,10 @@ timerInterval = setTimeout(tick, 1000);
             await updateAdminAnswersPanel();
         }
         if(currentUser?.isAdmin) {
-    document.getElementById('globalPauseBtn').classList.add('hidden');
-    document.getElementById('globalResumeBtn').classList.add('hidden');
-    await clearGlobalPause(); // на всякий случай сбросим паузу при завершении раунда
-}
+            document.getElementById('globalPauseBtn').classList.add('hidden');
+            document.getElementById('globalResumeBtn').classList.add('hidden');
+            await clearGlobalPause();
+        }
     }
 
     async function startRound(roundIndex) {
@@ -868,9 +1024,9 @@ timerInterval = setTimeout(tick, 1000);
         currentQuestionIdx = 0;
         gameActive = true;
         if(currentUser?.isAdmin) {
-    document.getElementById('globalPauseBtn').classList.remove('hidden');
-    document.getElementById('globalResumeBtn').classList.add('hidden');
-}
+            document.getElementById('globalPauseBtn').classList.remove('hidden');
+            document.getElementById('globalResumeBtn').classList.add('hidden');
+        }
         roundInProgress = true;
         
         answered = false;
@@ -906,10 +1062,9 @@ timerInterval = setTimeout(tick, 1000);
         document.getElementById('pauseScreen').classList.add('hidden');
     }
 
-    // ========== НОВЫЙ ФУНКЦИОНАЛ ПОКАЗА ОТВЕТОВ ==========
     async function startAnswersReview() {
         if (!currentUser?.isAdmin) return;
-        const round = roundsData[0]; // первый раунд
+        const round = roundsData[0]; // первый раунд (картинки)
         if (!round || round.type !== "image_sequence") return;
         
         await restPut('gameState/answersReview', {
@@ -955,7 +1110,6 @@ timerInterval = setTimeout(tick, 1000);
                         showAnswerSlide(nextIndex);
                     } else {
                         await restDelete('gameState/answersReview');
-                        // Вернуться в ожидание
                         document.getElementById('answersReviewScreen').classList.add('hidden');
                         showWaitingScreen();
                     }
@@ -1010,7 +1164,6 @@ timerInterval = setTimeout(tick, 1000);
                 const pauseState = await restGet('gameState/pause');
                 const reviewState = await restGet('gameState/answersReview');
 
-                // Обработка режима просмотра ответов
                 if (reviewState && reviewState.active) {
                     document.getElementById('waitingScreen')?.classList.add('hidden');
                     document.getElementById('quizScreen')?.classList.add('hidden');
@@ -1041,27 +1194,19 @@ timerInterval = setTimeout(tick, 1000);
                     document.getElementById('answersReviewScreen')?.classList.add('hidden');
                 }
 
-                // Обработка глобальной паузы
-const globalPause = await restGet('gameState/globalPause');
-if (globalPause && globalPause.active) {
-    // Для всех игроков показываем индикатор паузы
-    if (!currentUser?.isAdmin) {
-        // Можно отобразить сообщение, но таймер сам остановится через tick
-    }
-    // Админу показываем кнопку "Продолжить"
-    if (currentUser?.isAdmin) {
-        document.getElementById('globalPauseBtn').classList.add('hidden');
-        document.getElementById('globalResumeBtn').classList.remove('hidden');
-    }
-    // Не прерываем polling, просто продолжаем
-} else {
-    if (currentUser?.isAdmin) {
-        document.getElementById('globalPauseBtn').classList.remove('hidden');
-        document.getElementById('globalResumeBtn').classList.add('hidden');
-    }
-}
+                const globalPause = await restGet('gameState/globalPause');
+                if (globalPause && globalPause.active) {
+                    if (currentUser?.isAdmin) {
+                        document.getElementById('globalPauseBtn').classList.add('hidden');
+                        document.getElementById('globalResumeBtn').classList.remove('hidden');
+                    }
+                } else {
+                    if (currentUser?.isAdmin) {
+                        document.getElementById('globalPauseBtn').classList.remove('hidden');
+                        document.getElementById('globalResumeBtn').classList.add('hidden');
+                    }
+                }
 
-                // Обработка сброса игры
                 if (state && state.reset) {
                     if (!currentUser || !currentUser.isAdmin) {
                         localStorage.removeItem('quizUser');
@@ -1070,7 +1215,6 @@ if (globalPause && globalPause.active) {
                     return;
                 }
 
-                // Основной переход между состояниями игры
                 if (state && state.active && !gameActive && !roundInProgress && !pauseActive) {
                     gameActive = true; roundInProgress = true;
                     currentRound = state.currentRound; currentQuestionIdx = state.currentQuestion || 0;
@@ -1087,52 +1231,26 @@ if (globalPause && globalPause.active) {
                     showWaitingScreen();
                     if (currentUser?.isAdmin) await updateAdminAnswersPanel();
                 } else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
-                    if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
-                        if (state.imageStep !== imageStep) {
-                            if (timerInterval) clearInterval(timerInterval);
-                            imageStep = state.imageStep;
-                            
-                            if (currentUser?.isAdmin) {
-                                answered = state.answered || false;
-                                questionAnswered = state.questionAnswered || false;
-                                currentAnswerText = state.answerText || '';
-                            }
-                            
-                            if (!currentUser?.isAdmin) {
-    const playerAns = await getPlayerAnswerAndCheckStatus();
-    if (playerAns.answered || playerAns.checked) {
-        questionAnswered = true;
-        answered = true;
-        currentAnswerText = playerAns.answer || currentAnswerText;
-    } else {
-        questionAnswered = false;
-        answered = false;
-        const draftKey = `${currentRound}_${currentQuestionIdx}`;
-        if (draftAnswers[draftKey]) {
-            currentAnswerText = draftAnswers[draftKey];
-        }
-    }
-}
-                            
-                            const round = roundsData[currentRound];
-                            const question = round.questions[currentQuestionIdx];
-                            const startTime = (imageStep === 3) ? 12 : 8;
-                            startImageQuestion(question, questionAnswered, startTime);
-                        } else {
-                            if (state.questionAnswered !== questionAnswered && !currentUser?.isAdmin) {
-                                const playerAns = await getPlayerAnswerAndCheckStatus();
-                               if (playerAns.answered || playerAns.checked) {
-                                    questionAnswered = true;
-                                    answered = true;
-                                    const answerInput = document.getElementById('answerInput');
-                                    const submitBtn = document.getElementById('submitAnswerBtn');
-                                    if (answerInput && !answerInput.disabled) {
-                                        answerInput.disabled = true;
-                                        answerInput.value = playerAns.answer;
-                                        currentAnswerText = playerAns.answer;
+                    // Синхронизация для image_sequence
+                    if (roundsData[currentRound]?.type === "image_sequence") {
+                        if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
+                            if (state.imageStep !== imageStep) {
+                                if (timerInterval) clearInterval(timerInterval);
+                                imageStep = state.imageStep;
+                                
+                                if (!currentUser?.isAdmin) {
+                                    const playerAns = await getPlayerAnswerAndCheckStatus();
+                                    if (playerAns.answered || playerAns.checked) {
+                                        questionAnswered = true;
+                                        answered = true;
+                                        currentAnswerText = playerAns.answer || currentAnswerText;
                                     }
-                                    if (submitBtn) submitBtn.disabled = true;
                                 }
+                                
+                                const round = roundsData[currentRound];
+                                const question = round.questions[currentQuestionIdx];
+                                const startTime = (imageStep === 3) ? 12 : 8;
+                                startImageQuestion(question, questionAnswered, startTime);
                             }
                         }
                     }
@@ -1163,8 +1281,8 @@ if (globalPause && globalPause.active) {
                         if (!currentUser?.isAdmin) {
                             pauseActive = true;
                             isWaitingForNextQuestion = true;
-                            document.getElementById('pauseTitle').innerText = "⏸️ Пауза между аниме";
-                            document.getElementById('pauseMessage').innerHTML = "Следующее аниме начнётся через:";
+                            document.getElementById('pauseTitle').innerText = "⏸️ Пауза между вопросами";
+                            document.getElementById('pauseMessage').innerHTML = "Следующий вопрос начнётся через:";
                             document.getElementById('skipPauseBtn')?.classList.add('hidden');
                             document.getElementById('pauseScreen')?.classList.remove('hidden');
                             document.getElementById('quizScreen')?.classList.add('hidden');
@@ -1187,7 +1305,7 @@ if (globalPause && globalPause.active) {
                 await updateTeamsDisplay();
                 if (currentUser?.isAdmin) {
                     await updateAdminTeamsDisplay();
-                    if (roundsData[currentRound]?.type === "image_sequence" && currentRound >= 0 && currentRound < roundsData.length) {
+                    if ((roundsData[currentRound]?.type === "image_sequence" || roundsData[currentRound]?.type === "video") && currentRound >= 0 && currentRound < roundsData.length) {
                         await updateAdminAnswersPanel();
                     }
                 }
@@ -1329,6 +1447,8 @@ if (globalPause && globalPause.active) {
 
     // ==================== ОБРАБОТЧИКИ КНОПОК ====================
     function setupListeners() {
+        populateRoundSelect();
+        
         document.getElementById('joinBtn')?.addEventListener('click', () => {
             const nick = document.getElementById('nickname').value.trim();
             const teamBtn = document.querySelector('#loginTeamButtons .team-btn.selected');
@@ -1338,43 +1458,58 @@ if (globalPause && globalPause.active) {
             sessionRestored = false;
             joinGame(nick, teamBtn.dataset.team);
         });
+        
         document.getElementById('globalPauseBtn')?.addEventListener('click', async () => {
-    if (!currentUser?.isAdmin) return;
-    const timerDiv = document.getElementById('timer');
-    const remaining = timerDiv ? parseInt(timerDiv.innerText) : 0;
-    await setGlobalPause(true, remaining);
-    document.getElementById('globalPauseBtn').classList.add('hidden');
-    document.getElementById('globalResumeBtn').classList.remove('hidden');
-});
+            if (!currentUser?.isAdmin) return;
+            const timerDiv = document.getElementById('timer');
+            const remaining = timerDiv ? parseInt(timerDiv.innerText) : 0;
+            await setGlobalPause(true, remaining);
+            document.getElementById('globalPauseBtn').classList.add('hidden');
+            document.getElementById('globalResumeBtn').classList.remove('hidden');
+        });
 
-document.getElementById('globalResumeBtn')?.addEventListener('click', async () => {
-    if (!currentUser?.isAdmin) return;
-    await clearGlobalPause();
-    document.getElementById('globalResumeBtn').classList.add('hidden');
-    document.getElementById('globalPauseBtn').classList.remove('hidden');
-});
+        document.getElementById('globalResumeBtn')?.addEventListener('click', async () => {
+            if (!currentUser?.isAdmin) return;
+            await clearGlobalPause();
+            document.getElementById('globalResumeBtn').classList.add('hidden');
+            document.getElementById('globalPauseBtn').classList.remove('hidden');
+        });
+        
         document.getElementById('adminLoginFromStartBtn')?.addEventListener('click', ()=>{
             const pwd = prompt("Пароль администратора:");
             if (pwd) adminLogin(pwd);
         });
-        document.getElementById('startGameBtn')?.addEventListener('click', ()=>{ if(currentUser?.isAdmin) startRound(0); });
+        
+        document.getElementById('startSelectedRoundBtn')?.addEventListener('click', ()=>{
+            if(currentUser?.isAdmin) {
+                const select = document.getElementById('roundSelect');
+                const roundIdx = parseInt(select.value);
+                startRound(roundIdx);
+            }
+        });
+        
         document.getElementById('nextRoundBtn')?.addEventListener('click', async ()=>{
             if(currentUser?.isAdmin) currentRound+1 < roundsData.length ? await startRound(currentRound+1) : showFinalResults();
         });
+        
         document.getElementById('showAnswersBtn')?.addEventListener('click', startAnswersReview);
         document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
         document.getElementById('resetGameBtn')?.addEventListener('click', resetGame);
+        
         document.getElementById('becomeAdminBtn')?.addEventListener('click', ()=>{
             const pwd = prompt("Пароль администратора:");
             if (pwd==="admin123") { if(currentUser && !currentUser.isAdmin) restDelete(`players/${currentUser.id}`); adminLogin(pwd); }
             else if(pwd) alert("Неверный пароль");
         });
+        
         document.getElementById('skipPauseBtn')?.addEventListener('click', ()=>{
             if(currentUser?.isAdmin) skipCurrentPause(); else alert("Только админ может пропустить паузу");
         });
+        
         document.querySelectorAll('#loginTeamButtons .team-btn').forEach(b=> b.addEventListener('click', ()=>{
             document.querySelectorAll('#loginTeamButtons .team-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected');
         }));
+        
         document.querySelectorAll('#changeTeamButtons .team-btn').forEach(b=> b.addEventListener('click', async ()=>{
             if(!gameActive && currentUser && !currentUser.isAdmin){
                 await restPatch(`players/${currentUser.id}`, {team: parseInt(b.dataset.team)});
@@ -1387,10 +1522,29 @@ document.getElementById('globalResumeBtn')?.addEventListener('click', async () =
                 updateTeamsDisplay();
             } else document.getElementById('changeTeamMsg').innerHTML = "Нельзя сменить команду после старта";
         }));
+        
         const firstTeam = document.querySelector('#loginTeamButtons .team-btn');
         if(firstTeam) firstTeam.classList.add('selected');
     }
     
+    function skipCurrentPause() {
+        if (!currentUser || !currentUser.isAdmin) return;
+        restPut('gameState/pause', { skip: true });
+        if (pauseInterval) clearInterval(pauseInterval);
+        pauseActive = false;
+        document.getElementById('pauseScreen').classList.add('hidden');
+        if (isWaitingForNextQuestion) {
+            isWaitingForNextQuestion = false;
+            if (currentQuestionIdx + 1 < roundsData[currentRound].questions.length) {
+                currentQuestionIdx++;
+                showCurrentQuestion();
+                document.getElementById('quizScreen').classList.remove('hidden');
+            } else {
+                finishRound();
+            }
+        }
+    }
+
     setupListeners();
 </script>
 </body>
