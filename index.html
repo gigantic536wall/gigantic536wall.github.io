@@ -178,6 +178,8 @@
             <button id="showAnswersBtn" class="hidden">📋 Показать ответы раунда (слайд-шоу)</button>
             <button id="clearPlayersBtn" class="clear-players-btn">🧹 Очистить всех игроков</button>
             <button id="resetGameBtn">🔄 Сбросить игру</button>
+            <button id="globalPauseBtn" class="hidden">⏸️ Поставить на паузу</button>
+            <button id="globalResumeBtn" class="hidden">▶️ Снять с паузы</button>
         </div>
         <div id="adminAnswersPanel"></div>
     </div>
@@ -218,11 +220,23 @@
     let questionAnswered = false;
     let draftAnswers = {};
     let reviewTimerInterval = null;
+    let globalPauseActive = false;
+    let globalPauseRemaining = 0;
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
     function showError(msg){ const d=document.getElementById('errorDisplay'); if(d){ d.innerText=msg; d.style.display='block'; setTimeout(()=>d.style.display='none',5000); } }
     async function awardPoints(playerId,delta){ const p=await restGet(`players/${playerId}`); if(p) await restPatch(`players/${playerId}`,{score:(p.score||0)+delta}); }
 
+
+    async function setGlobalPause(active, remainingSeconds = null) {
+    const pauseData = { active };
+    if (remainingSeconds !== null) pauseData.remaining = remainingSeconds;
+    await restPut('gameState/globalPause', pauseData);
+}
+
+async function clearGlobalPause() {
+    await restDelete('gameState/globalPause');
+}
     
     async function getPlayerAnswerAndCheckStatus() {
     if (!currentUser || currentUser.isAdmin) return { answered: false, checked: false, answer: '' };
@@ -375,7 +389,7 @@ updateAdminAnswersPanel();
 
     function showCurrentQuestion() {
         if (timerInterval) clearInterval(timerInterval);
-        if (currentQuizTimer) clearInterval(currentQuizTimer);
+        if (currentQuizTimer) clearTimeout(currentQuizTimer);
         
         const round = roundsData[currentRound];
         const question = round.questions[currentQuestionIdx];
@@ -414,18 +428,25 @@ updateAdminAnswersPanel();
             timerDiv.className = "timer";
             timerDiv.innerText = timeLeft;
             container.appendChild(timerDiv);
-            currentQuizTimer = setInterval(() => {
-                if(!gameActive || !roundInProgress) { clearInterval(currentQuizTimer); return; }
-                timeLeft--;
-                if(timerDiv) timerDiv.innerText = timeLeft;
-                if(timeLeft <= 0) {
-                    clearInterval(currentQuizTimer);
-                    if(roundInProgress) {
-                        alert("Время вышло!");
-                        nextQuestionOrRound();
-                    }
-                }
-            }, 1000);
+           const tickQuiz = async () => {
+    if(!gameActive || !roundInProgress) return;
+    const pauseState = await restGet('gameState/globalPause');
+    if (pauseState && pauseState.active) {
+        currentQuizTimer = setTimeout(tickQuiz, 500);
+        return;
+    }
+    timeLeft--;
+    if(timerDiv) timerDiv.innerText = timeLeft;
+    if(timeLeft <= 0) {
+        if(roundInProgress) {
+            alert("Время вышло!");
+            nextQuestionOrRound();
+        }
+    } else {
+        currentQuizTimer = setTimeout(tickQuiz, 1000);
+    }
+};
+currentQuizTimer = setTimeout(tickQuiz, 1000);
         }
     }
 
@@ -571,36 +592,58 @@ updateAdminAnswersPanel();
         }
      
         
-        if(timerInterval) clearInterval(timerInterval);
-        timerInterval = setInterval(async () => {
-            if(!gameActive || !roundInProgress) { clearInterval(timerInterval); return; }
-            timeLeft--;
-            const timerDiv = document.getElementById('timer');
-            if(timerDiv) timerDiv.innerText = timeLeft;
-            
-            if(timeLeft <= 0) {
-                clearInterval(timerInterval);
-                if(currentUser?.isAdmin) {
-                    imageStep++;
-                    const nextTime = (imageStep === 3) ? 12 : 8;
-                    await restPut('gameState', {
-                        active: true,
-                        currentRound: currentRound,
-                        currentQuestion: currentQuestionIdx,
-                        imageStep: imageStep,
-                        imageTimeLeft: nextTime,
-                        answered: false,
-                        questionAnswered: questionAnswered,
-                        answerText: currentAnswerText
-                    });
-                    if(imageStep < 4) {
-                        startImageQuestion(question, questionAnswered, nextTime);
-                    } else {
-                        startPauseBetweenQuestions();
-                    }
-                }
+       if(timerInterval) clearInterval(timerInterval);
+const tick = async () => {
+    if(!gameActive || !roundInProgress) return;
+    
+    // Проверка глобальной паузы
+    const pauseState = await restGet('gameState/globalPause');
+    if (pauseState && pauseState.active) {
+        if (!globalPauseActive) {
+            globalPauseActive = true;
+            globalPauseRemaining = timeLeft;
+        }
+        timerInterval = setTimeout(tick, 500);
+        return;
+    } else {
+        if (globalPauseActive) {
+            globalPauseActive = false;
+            // Восстанавливаем время, если админ передал новое remaining
+            if (pauseState && pauseState.remaining !== undefined) {
+                timeLeft = pauseState.remaining;
             }
-        }, 1000);
+        }
+    }
+    
+    timeLeft--;
+    const timerDiv = document.getElementById('timer');
+    if(timerDiv) timerDiv.innerText = timeLeft;
+    
+    if(timeLeft <= 0) {
+        if(currentUser?.isAdmin) {
+            imageStep++;
+            const nextTime = (imageStep === 3) ? 12 : 8;
+            await restPut('gameState', {
+                active: true,
+                currentRound: currentRound,
+                currentQuestion: currentQuestionIdx,
+                imageStep: imageStep,
+                imageTimeLeft: nextTime,
+                answered: false,
+                questionAnswered: questionAnswered,
+                answerText: currentAnswerText
+            });
+            if(imageStep < 4) {
+                startImageQuestion(question, questionAnswered, nextTime);
+            } else {
+                startPauseBetweenQuestions();
+            }
+        }
+    } else {
+        timerInterval = setTimeout(tick, 1000);
+    }
+};
+timerInterval = setTimeout(tick, 1000);
     }
 
     function startPauseBetweenQuestions() {
@@ -690,7 +733,7 @@ updateAdminAnswersPanel();
         } else {
             alert(`❌ Неправильно. Правильный ответ: ${question.options[question.correct]}`);
         }
-        if(currentQuizTimer) clearInterval(currentQuizTimer);
+        if(currentQuizTimer) clearTimeout(currentQuizTimer);
         nextQuestionOrRound();
     }
 
@@ -717,6 +760,11 @@ updateAdminAnswersPanel();
             document.getElementById('showAnswersBtn').classList.remove('hidden');
             await updateAdminAnswersPanel();
         }
+        if(currentUser?.isAdmin) {
+    document.getElementById('globalPauseBtn').classList.add('hidden');
+    document.getElementById('globalResumeBtn').classList.add('hidden');
+    await clearGlobalPause(); // на всякий случай сбросим паузу при завершении раунда
+}
     }
 
     async function startRound(roundIndex) {
@@ -732,6 +780,10 @@ updateAdminAnswersPanel();
         currentRound = roundIndex;
         currentQuestionIdx = 0;
         gameActive = true;
+        if(currentUser?.isAdmin) {
+    document.getElementById('globalPauseBtn').classList.remove('hidden');
+    document.getElementById('globalResumeBtn').classList.add('hidden');
+}
         roundInProgress = true;
         
         answered = false;
@@ -901,6 +953,26 @@ updateAdminAnswersPanel();
                 } else {
                     document.getElementById('answersReviewScreen')?.classList.add('hidden');
                 }
+
+                // Обработка глобальной паузы
+const globalPause = await restGet('gameState/globalPause');
+if (globalPause && globalPause.active) {
+    // Для всех игроков показываем индикатор паузы
+    if (!currentUser?.isAdmin) {
+        // Можно отобразить сообщение, но таймер сам остановится через tick
+    }
+    // Админу показываем кнопку "Продолжить"
+    if (currentUser?.isAdmin) {
+        document.getElementById('globalPauseBtn').classList.add('hidden');
+        document.getElementById('globalResumeBtn').classList.remove('hidden');
+    }
+    // Не прерываем polling, просто продолжаем
+} else {
+    if (currentUser?.isAdmin) {
+        document.getElementById('globalPauseBtn').classList.remove('hidden');
+        document.getElementById('globalResumeBtn').classList.add('hidden');
+    }
+}
 
                 // Обработка сброса игры
                 if (state && state.reset) {
@@ -1179,6 +1251,21 @@ updateAdminAnswersPanel();
             sessionRestored = false;
             joinGame(nick, teamBtn.dataset.team);
         });
+        document.getElementById('globalPauseBtn')?.addEventListener('click', async () => {
+    if (!currentUser?.isAdmin) return;
+    const timerDiv = document.getElementById('timer');
+    const remaining = timerDiv ? parseInt(timerDiv.innerText) : 0;
+    await setGlobalPause(true, remaining);
+    document.getElementById('globalPauseBtn').classList.add('hidden');
+    document.getElementById('globalResumeBtn').classList.remove('hidden');
+});
+
+document.getElementById('globalResumeBtn')?.addEventListener('click', async () => {
+    if (!currentUser?.isAdmin) return;
+    await clearGlobalPause();
+    document.getElementById('globalResumeBtn').classList.add('hidden');
+    document.getElementById('globalPauseBtn').classList.remove('hidden');
+});
         document.getElementById('adminLoginFromStartBtn')?.addEventListener('click', ()=>{
             const pwd = prompt("Пароль администратора:");
             if (pwd) adminLogin(pwd);
