@@ -239,10 +239,11 @@
     async function restPatch(p,d) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); if(!r.ok) throw new Error(`PATCH ${p} ${r.status}`); return r.json(); }
     async function restDelete(p) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'DELETE'}); if(!r.ok) throw new Error(`DELETE ${p} ${r.status}`); return r.json(); }
 
-     // ========== АУДИО ПЛЕЕР ==========
+    // ========== АУДИО ПЛЕЕР ==========
     const bgMusic = new Audio('music/background.mp3');
     bgMusic.loop = true;
     bgMusic.volume = 0.5;
+    let musicEnabled = true;
 
     function initAudio() {
         if (bgMusic.paused) {
@@ -254,6 +255,12 @@
     const volumeSlider = document.getElementById('volumeSlider');
     const testSoundBtn = document.getElementById('testSoundBtn');
 
+    volumeSlider.addEventListener('input', (e) => {
+        const vol = parseFloat(e.target.value);
+        bgMusic.volume = vol;
+        updateMuteIcon(vol);
+    });
+
     function updateMuteIcon(vol) {
         if (vol === 0) muteIcon.textContent = '🔇';
         else if (vol < 0.3) muteIcon.textContent = '🔈';
@@ -261,26 +268,15 @@
         else muteIcon.textContent = '🔊';
     }
 
-    volumeSlider.addEventListener('input', (e) => {
-        const vol = parseFloat(e.target.value);
-        bgMusic.volume = vol;
-        if (typeof videoElement !== 'undefined' && videoElement) {
-            videoElement.volume = vol;
-        }
-        updateMuteIcon(vol);
-    });
-
     muteIcon.addEventListener('click', () => {
         if (bgMusic.volume > 0) {
             bgMusic.volume = 0;
             volumeSlider.value = 0;
             muteIcon.textContent = '🔇';
-            if (typeof videoElement !== 'undefined' && videoElement) videoElement.volume = 0;
         } else {
             const newVol = 0.5;
             bgMusic.volume = newVol;
             volumeSlider.value = newVol;
-            if (typeof videoElement !== 'undefined' && videoElement) videoElement.volume = newVol;
             updateMuteIcon(newVol);
         }
     });
@@ -295,7 +291,6 @@
         initAudio();
         document.body.removeEventListener('click', startMusicOnce);
     }, { once: true });
-
 
     // ==================== ДАННЫЕ ИГРЫ ====================
     const roundsData = [
@@ -320,16 +315,16 @@
             type: "video", 
             name: "Раунд 3: Угадай аниме по отрывку опенинга", 
             questions: [
-                { video: "anime3vid/bleach1.mp4", correctAnswer: "Название аниме 1" },
-                { video: "anime3vid/moidevushka2.mp4", correctAnswer: "Название аниме 2" },
-                { video: "anime3vid/devushkitank3.mp4", correctAnswer: "Название аниме 3" },
-                { video: "anime3vid/voshoshdenievteni4.mp4", correctAnswer: "Название аниме 4" },
-                { video: "anime3vid/feriteil5.mp4", correctAnswer: "Название аниме 5" },
-                { video: "anime3vid/mbvstrichy6.mp4", correctAnswer: "Название аниме 6" },
-                { video: "anime3vid/angelofdeth7.mp4", correctAnswer: "Название аниме 7" },
-                { video: "anime3vid/stranachudes8.mp4", correctAnswer: "Название аниме 8" },
-                { video: "anime3vid/monolog9.mp4", correctAnswer: "Название аниме 9" },
-                { video: "anime3vid/patriotism10.mp4", correctAnswer: "Название аниме 10" }
+                { video: "videos/op1.mp4", correctAnswer: "Название аниме 1" },
+                { video: "videos/op2.mp4", correctAnswer: "Название аниме 2" },
+                { video: "videos/op3.mp4", correctAnswer: "Название аниме 3" },
+                { video: "videos/op4.mp4", correctAnswer: "Название аниме 4" },
+                { video: "videos/op5.mp4", correctAnswer: "Название аниме 5" },
+                { video: "videos/op6.mp4", correctAnswer: "Название аниме 6" },
+                { video: "videos/op7.mp4", correctAnswer: "Название аниме 7" },
+                { video: "videos/op8.mp4", correctAnswer: "Название аниме 8" },
+                { video: "videos/op9.mp4", correctAnswer: "Название аниме 9" },
+                { video: "videos/op10.mp4", correctAnswer: "Название аниме 10" }
             ],
             pauseDuration: 10 // секунд между вопросами
         },
@@ -800,6 +795,7 @@
     const round = roundsData[currentRound];
     const container = document.getElementById('roundContent');
     const totalTime = 15;        // общее время на вопрос (включая просмотр)
+    const extraTimeAfterVideo = 10; // дополнительное время после окончания видео
     
     const draftKey = `${currentRound}_${currentQuestionIdx}`;
     let displayText = currentAnswerText || (draftAnswers[draftKey] || '');
@@ -832,7 +828,6 @@
     const replayBtn = document.getElementById('replayVideoBtn');
     
     videoElement = video;
-    video.volume = volumeSlider.value; // синхронизация громкости с ползунком
     
     // Состояние таймера
     let remaining = totalTime;
@@ -929,6 +924,9 @@
         if (remaining <= 0) {
             // Время вышло
             clearInterval(timerIntervalId);
+            if (!questionAnswered && !answered) {
+                // Если игрок не ответил — просто переходим к паузе
+            }
             if (currentUser?.isAdmin) {
                 startPauseBetweenQuestions(round.pauseDuration || 10);
             }
@@ -938,13 +936,16 @@
     };
     
     timerIntervalId = setTimeout(tick, 1000);
-    timerInterval = timerIntervalId;
     
     // Обработчик окончания видео (для обновления интерфейса)
     video.addEventListener('ended', () => {
         videoEnded = true;
         timeStatus.textContent = `${remaining} сек (видео закончилось, ещё есть время на ответ)`;
+        // Если админ, можно ничего не делать, таймер сам дойдёт до 0
     });
+    
+    // Сохраняем ID таймера для возможности очистки извне
+    timerInterval = timerIntervalId;
 }
 
     function startPauseBetweenQuestions(customDuration = null) {
