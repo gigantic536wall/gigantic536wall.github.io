@@ -228,12 +228,24 @@
             <button id="nextRoundBtn" class="hidden">➡️ Следующий раунд</button>
             <button id="showAnswersBtn" class="hidden">📋 Показать ответы раунда (слайд-шоу)</button>
             <button id="showVideoAnswersBtn" class="hidden">🎬 Показать ответы видео-раунда</button>
+            <button id="showTestAnswersBtn" class="test-answers-btn">📋 Показать ответы любого раунда (тест)</button>
             <button id="clearPlayersBtn" class="clear-players-btn">🧹 Очистить всех игроков</button>
             <button id="resetGameBtn">🔄 Сбросить игру</button>
             <button id="globalPauseBtn" class="hidden">⏸️ Поставить на паузу</button>
             <button id="globalResumeBtn" class="hidden">▶️ Снять с паузы</button>
         </div>
         <div id="adminAnswersPanel"></div>
+    </div>
+     <!-- ВСТАВЬТЕ МОДАЛЬНОЕ ОКНО СЮДА -->
+    <div id="testAnswersModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" id="closeTestAnswersModal">&times;</span>
+            <h2>Правильные ответы (тестовый режим)</h2>
+            <label>Выберите раунд:</label>
+            <select id="testRoundSelect"></select>
+            <button id="loadTestAnswersBtn">Показать</button>
+            <div id="testAnswersContent" style="margin-top:20px;"></div>
+        </div>
     </div>
 </div>
 
@@ -1154,6 +1166,29 @@
         showVideoAnswerSlide(0);
     }
 
+    function showTestAnswersForRound(roundIndex) {
+    const round = roundsData[roundIndex];
+    const container = document.getElementById('testAnswersContent');
+    let html = `<h3>${round.name}</h3>`;
+    
+    round.questions.forEach((q, idx) => {
+        html += `<div class="answer-item">`;
+        html += `<strong>Вопрос ${idx+1}:</strong> `;
+        if (round.type === 'image_sequence') {
+            q.images.forEach(img => html += `<img src="${img}" style="width:80px; margin:2px;">`);
+            html += `<br><span style="color:#2ecc71;">✓ ${q.correctAnswer}</span>`;
+        } else if (round.type === 'video') {
+            html += `<video src="${q.video}" style="max-width:200px;" controls></video> `;
+            html += `<span style="color:#2ecc71;">✓ ${q.correctAnswer}</span>`;
+        } else { // quiz
+            html += `${q.text}<br>`;
+            html += `<span style="color:#2ecc71;">✓ ${q.options[q.correct]}</span>`;
+        }
+        html += `</div>`;
+    });
+    container.innerHTML = html;
+}
+
     function showVideoAnswerSlide(slideIndex) {
         if (videoReviewTimer) clearTimeout(videoReviewTimer);
         const round = roundsData[2];
@@ -1692,6 +1727,36 @@
         document.getElementById('showVideoAnswersBtn')?.addEventListener('click', startVideoAnswersReview);
         document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
         document.getElementById('resetGameBtn')?.addEventListener('click', resetGame);
+        // Открытие модального окна тестовых ответов
+document.getElementById('showTestAnswersBtn')?.addEventListener('click', () => {
+    const select = document.getElementById('testRoundSelect');
+    select.innerHTML = '';
+    roundsData.forEach((r, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${i+1}. ${r.name}`;
+        select.appendChild(opt);
+    });
+    document.getElementById('testAnswersContent').innerHTML = '';
+    document.getElementById('testAnswersModal').style.display = 'block';
+});
+
+// Закрытие модального окна (крестик)
+document.getElementById('closeTestAnswersModal')?.addEventListener('click', () => {
+    document.getElementById('testAnswersModal').style.display = 'none';
+});
+
+// Кнопка "Показать" внутри модального окна
+document.getElementById('loadTestAnswersBtn')?.addEventListener('click', () => {
+    const idx = parseInt(document.getElementById('testRoundSelect').value);
+    showTestAnswersForRound(idx);
+});
+
+// Закрытие окна при клике вне области контента (опционально)
+window.addEventListener('click', (e) => {
+    const modal = document.getElementById('testAnswersModal');
+    if (e.target === modal) modal.style.display = 'none';
+});
         
         document.getElementById('becomeAdminBtn')?.addEventListener('click', ()=>{
             const pwd = prompt("Пароль администратора:");
