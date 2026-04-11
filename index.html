@@ -791,130 +791,162 @@
         timerInterval = setTimeout(tick, 1000);
     }
 
-    function startVideoQuestion(question) {
-        const round = roundsData[currentRound];
-        const container = document.getElementById('roundContent');
-        const timeLeft = 15; // длительность видео
-        
-        const draftKey = `${currentRound}_${currentQuestionIdx}`;
-        let displayText = currentAnswerText || (draftAnswers[draftKey] || '');
-        const inputDisabled = questionAnswered ? 'disabled' : '';
-        
-        container.innerHTML = `
-            <div class="image-round-container">
-                <h2>${round.name} | Вопрос ${currentQuestionIdx+1} из ${round.questions.length}</h2>
-                <div class="timer" id="timer">${timeLeft}</div>
-                <video id="questionVideo" class="video-player" autoplay controlsList="nodownload" oncontextmenu="return false;">
-                    <source src="${question.video}" type="video/mp4">
-                    Ваш браузер не поддерживает видео.
-                </video>
-                <div>
-                    <input type="text" id="answerInput" class="answer-input" placeholder="Введите название аниме" ${inputDisabled} value="${displayText.replace(/"/g, '&quot;')}">
-                    <button id="submitAnswerBtn" ${inputDisabled}>Ответить</button>
-                </div>
-                <p>🎬 Смотрите отрывок и угадывайте!</p>
+   function startVideoQuestion(question) {
+    const round = roundsData[currentRound];
+    const container = document.getElementById('roundContent');
+    const totalTime = 15;        // общее время на вопрос (включая просмотр)
+    const extraTimeAfterVideo = 10; // дополнительное время после окончания видео
+    
+    const draftKey = `${currentRound}_${currentQuestionIdx}`;
+    let displayText = currentAnswerText || (draftAnswers[draftKey] || '');
+    const inputDisabled = questionAnswered ? 'disabled' : '';
+    
+    container.innerHTML = `
+        <div class="image-round-container">
+            <h2>${round.name} | Вопрос ${currentQuestionIdx+1} из ${round.questions.length}</h2>
+            <div class="timer" id="timer">${totalTime}</div>
+            <video id="questionVideo" class="video-player" autoplay controlsList="nodownload" oncontextmenu="return false;">
+                <source src="${question.video}" type="video/mp4">
+                Ваш браузер не поддерживает видео.
+            </video>
+            <div style="margin: 10px;">
+                <button id="replayVideoBtn" style="background: #3498db; padding: 8px 16px;">↻ Повторить видео</button>
             </div>
-        `;
-        
-        const video = document.getElementById('questionVideo');
-        const answerInput = document.getElementById('answerInput');
-        const submitBtn = document.getElementById('submitAnswerBtn');
-        const timerDiv = document.getElementById('timer');
-        
-        videoElement = video;
-        
-        // Устанавливаем длительность видео 15 сек (если видео короче, зацикливать не будем)
-        video.addEventListener('loadedmetadata', () => {
-            if (video.duration < 15) {
-                // если видео короче, можно поставить loop, но мы просто будем ждать окончания
-            }
+            <div>
+                <input type="text" id="answerInput" class="answer-input" placeholder="Введите название аниме" ${inputDisabled} value="${displayText.replace(/"/g, '&quot;')}">
+                <button id="submitAnswerBtn" ${inputDisabled}>Ответить</button>
+            </div>
+            <p>🎬 Смотрите отрывок и угадывайте! (Оставшееся время: <span id="timeStatus">${totalTime} сек</span>)</p>
+        </div>
+    `;
+    
+    const video = document.getElementById('questionVideo');
+    const answerInput = document.getElementById('answerInput');
+    const submitBtn = document.getElementById('submitAnswerBtn');
+    const timerDiv = document.getElementById('timer');
+    const timeStatus = document.getElementById('timeStatus');
+    const replayBtn = document.getElementById('replayVideoBtn');
+    
+    videoElement = video;
+    
+    // Состояние таймера
+    let remaining = totalTime;
+    let videoEnded = false;
+    let timerIntervalId = null;
+    
+    // Обработчик кнопки повтора видео
+    replayBtn.addEventListener('click', () => {
+        if (video.paused || video.ended) {
+            video.currentTime = 0;
+            video.play();
+        } else {
+            video.currentTime = 0;
+        }
+    });
+    
+    // Если игрок уже ответил, отключаем элементы
+    if (questionAnswered) {
+        video.pause();
+        replayBtn.disabled = true;
+    }
+    
+    // Обработчик ответа
+    if (!questionAnswered) {
+        answerInput.addEventListener('input', (e) => {
+            currentAnswerText = e.target.value;
+            draftAnswers[draftKey] = e.target.value;
         });
         
-        if (!questionAnswered) {
-            answerInput.addEventListener('input', (e) => {
-                currentAnswerText = e.target.value;
-                draftAnswers[draftKey] = e.target.value;
-            });
+        submitBtn.onclick = async () => {
+            if (!currentUser?.isAdmin) {
+                const status = await getPlayerAnswerAndCheckStatus();
+                if (status.checked || status.answered) {
+                    alert("Вы уже ответили или ваш ответ проверен.");
+                    return;
+                }
+            }
+            if (questionAnswered) return;
+            const answer = answerInput.value.trim();
+            if (answer === "") { alert("Введите ответ"); return; }
             
-            submitBtn.onclick = async () => {
-                if (!currentUser?.isAdmin) {
-                    const status = await getPlayerAnswerAndCheckStatus();
-                    if (status.checked || status.answered) {
-                        alert("Вы уже ответили или ваш ответ проверен.");
-                        return;
-                    }
-                }
-                if (questionAnswered) return;
-                const answer = answerInput.value.trim();
-                if (answer === "") { alert("Введите ответ"); return; }
-                
-                answered = true;
-                questionAnswered = true;
-                currentAnswerText = answer;
-                delete draftAnswers[draftKey];
-                
-                if (currentUser && !currentUser.isAdmin) {
-                    const path = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
-                    await restPut(path, { answered: true, answer: answer, timestamp: Date.now() });
-                }
-                
-                if (currentUser?.isAdmin) {
-                    await restPut('gameState', {
-                        active: true,
-                        currentRound: currentRound,
-                        currentQuestion: currentQuestionIdx,
-                        videoAnswered: true,
-                        answerText: answer
-                    });
-                }
-                
-                answerInput.disabled = true;
-                submitBtn.disabled = true;
-                video.pause();
-                
-                if (currentUser?.isAdmin) await updateAdminAnswersPanel();
-            };
+            answered = true;
+            questionAnswered = true;
+            currentAnswerText = answer;
+            delete draftAnswers[draftKey];
+            
+            if (currentUser && !currentUser.isAdmin) {
+                const path = `players/${currentUser.id}/roundAnswers/${currentRound}/q${currentQuestionIdx}`;
+                await restPut(path, { answered: true, answer: answer, timestamp: Date.now() });
+            }
+            
+            if (currentUser?.isAdmin) {
+                await restPut('gameState', {
+                    active: true,
+                    currentRound: currentRound,
+                    currentQuestion: currentQuestionIdx,
+                    videoAnswered: true,
+                    answerText: answer
+                });
+            }
+            
+            answerInput.disabled = true;
+            submitBtn.disabled = true;
+            replayBtn.disabled = true;
+            video.pause();
+            
+            if (currentUser?.isAdmin) await updateAdminAnswersPanel();
+        };
+    }
+    
+    // Таймер
+    const tick = async () => {
+        if (!gameActive || !roundInProgress) {
+            clearInterval(timerIntervalId);
+            return;
         }
         
-        let remaining = timeLeft;
-        const tick = async () => {
-            if (!gameActive || !roundInProgress) return;
-            
-            const pauseState = await restGet('gameState/globalPause');
-            if (pauseState && pauseState.active) {
-                timerInterval = setTimeout(tick, 500);
-                return;
-            }
-            
-            remaining--;
-            timerDiv.innerText = remaining;
-            
-            if (remaining <= 0 || video.ended) {
-                // Время вышло или видео закончилось
-                if (!questionAnswered && !answered) {
-                    // Автоматически не отправляем, просто переходим к паузе
-                }
-                if (currentUser?.isAdmin) {
-                    startPauseBetweenQuestions(round.pauseDuration || 10);
-                }
-                clearInterval(timerInterval);
-            } else {
-                timerInterval = setTimeout(tick, 1000);
-            }
-        };
-        timerInterval = setTimeout(tick, 1000);
+        const pauseState = await restGet('gameState/globalPause');
+        if (pauseState && pauseState.active) {
+            timerIntervalId = setTimeout(tick, 500);
+            return;
+        }
         
-        // Обработчик окончания видео
-        video.addEventListener('ended', () => {
-            if (currentUser?.isAdmin) {
-                // Если видео закончилось раньше таймера, админ может форсировать паузу
-                if (!questionAnswered) {
-                    // Можно дать возможность ответить до конца таймера, но проще перейти к паузе
-                    startPauseBetweenQuestions(round.pauseDuration || 10);
-                }
+        // Логика таймера с учётом окончания видео
+        if (!videoEnded && video.ended) {
+            videoEnded = true;
+            timeStatus.textContent = `${remaining} сек (видео закончилось, ещё есть время на ответ)`;
+        }
+        
+        remaining--;
+        timerDiv.innerText = remaining;
+        timeStatus.textContent = `${remaining} сек${videoEnded ? ' (отсчёт после видео)' : ''}`;
+        
+        if (remaining <= 0) {
+            // Время вышло
+            clearInterval(timerIntervalId);
+            if (!questionAnswered && !answered) {
+                // Если игрок не ответил — просто переходим к паузе
             }
-        });
-    }
+            if (currentUser?.isAdmin) {
+                startPauseBetweenQuestions(round.pauseDuration || 10);
+            }
+        } else {
+            timerIntervalId = setTimeout(tick, 1000);
+        }
+    };
+    
+    timerIntervalId = setTimeout(tick, 1000);
+    
+    // Обработчик окончания видео (для обновления интерфейса)
+    video.addEventListener('ended', () => {
+        videoEnded = true;
+        timeStatus.textContent = `${remaining} сек (видео закончилось, ещё есть время на ответ)`;
+        // Если админ, можно ничего не делать, таймер сам дойдёт до 0
+    });
+    
+    // Сохраняем ID таймера для возможности очистки извне
+    timerInterval = timerIntervalId;
+}
 
     function startPauseBetweenQuestions(customDuration = null) {
         const round = roundsData[currentRound];
