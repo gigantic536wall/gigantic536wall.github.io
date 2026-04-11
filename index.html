@@ -239,64 +239,20 @@
     async function restPatch(p,d) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); if(!r.ok) throw new Error(`PATCH ${p} ${r.status}`); return r.json(); }
     async function restDelete(p) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'DELETE'}); if(!r.ok) throw new Error(`DELETE ${p} ${r.status}`); return r.json(); }
 
-    // ========== АУДИО ПЛЕЕР ==========
-   // ========== АУДИО ПЛЕЕР ==========
-const bgMusic = new Audio('music/background.mp3');
-bgMusic.loop = true;
-bgMusic.volume = 0.5;
-let musicEnabled = true;
+     // ========== АУДИО ПЛЕЕР ==========
+    const bgMusic = new Audio('music/background.mp3');
+    bgMusic.loop = true;
+    bgMusic.volume = 0.5;
 
-function initAudio() {
-    if (bgMusic.paused) {
-        bgMusic.play().catch(e => console.log("Автовоспроизведение заблокировано, ждём клика"));
+    function initAudio() {
+        if (bgMusic.paused) {
+            bgMusic.play().catch(e => console.log("Автовоспроизведение заблокировано, ждём клика"));
+        }
     }
-}
 
-const muteIcon = document.getElementById('muteIcon');
-const volumeSlider = document.getElementById('volumeSlider');
-const testSoundBtn = document.getElementById('testSoundBtn');
-
-volumeSlider.addEventListener('input', (e) => {
-    const vol = parseFloat(e.target.value);
-    bgMusic.volume = vol;
-    if (videoElement) {
-        videoElement.volume = vol;
-    }
-    updateMuteIcon(vol);
-});
-
-function updateMuteIcon(vol) {
-    if (vol === 0) muteIcon.textContent = '🔇';
-    else if (vol < 0.3) muteIcon.textContent = '🔈';
-    else if (vol < 0.7) muteIcon.textContent = '🔉';
-    else muteIcon.textContent = '🔊';
-}
-
-muteIcon.addEventListener('click', () => {
-    if (bgMusic.volume > 0) {
-        bgMusic.volume = 0;
-        volumeSlider.value = 0;
-        muteIcon.textContent = '🔇';
-        if (videoElement) videoElement.volume = 0;
-    } else {
-        const newVol = 0.5;
-        bgMusic.volume = newVol;
-        volumeSlider.value = newVol;
-        if (videoElement) videoElement.volume = newVol;
-        updateMuteIcon(newVol);
-    }
-});
-
-testSoundBtn.addEventListener('click', () => {
-    const testAudio = new Audio('music/тестауд.mp3');
-    testAudio.volume = volumeSlider.value;
-    testAudio.play();
-});
-
-document.body.addEventListener('click', function startMusicOnce() {
-    initAudio();
-    document.body.removeEventListener('click', startMusicOnce);
-}, { once: true });
+    const muteIcon = document.getElementById('muteIcon');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const testSoundBtn = document.getElementById('testSoundBtn');
 
     function updateMuteIcon(vol) {
         if (vol === 0) muteIcon.textContent = '🔇';
@@ -305,15 +261,26 @@ document.body.addEventListener('click', function startMusicOnce() {
         else muteIcon.textContent = '🔊';
     }
 
+    volumeSlider.addEventListener('input', (e) => {
+        const vol = parseFloat(e.target.value);
+        bgMusic.volume = vol;
+        if (typeof videoElement !== 'undefined' && videoElement) {
+            videoElement.volume = vol;
+        }
+        updateMuteIcon(vol);
+    });
+
     muteIcon.addEventListener('click', () => {
         if (bgMusic.volume > 0) {
             bgMusic.volume = 0;
             volumeSlider.value = 0;
             muteIcon.textContent = '🔇';
+            if (typeof videoElement !== 'undefined' && videoElement) videoElement.volume = 0;
         } else {
             const newVol = 0.5;
             bgMusic.volume = newVol;
             volumeSlider.value = newVol;
+            if (typeof videoElement !== 'undefined' && videoElement) videoElement.volume = newVol;
             updateMuteIcon(newVol);
         }
     });
@@ -328,6 +295,7 @@ document.body.addEventListener('click', function startMusicOnce() {
         initAudio();
         document.body.removeEventListener('click', startMusicOnce);
     }, { once: true });
+
 
     // ==================== ДАННЫЕ ИГРЫ ====================
     const roundsData = [
@@ -832,7 +800,6 @@ document.body.addEventListener('click', function startMusicOnce() {
     const round = roundsData[currentRound];
     const container = document.getElementById('roundContent');
     const totalTime = 15;        // общее время на вопрос (включая просмотр)
-    const extraTimeAfterVideo = 10; // дополнительное время после окончания видео (не используется в таймере, просто комментарий)
     
     const draftKey = `${currentRound}_${currentQuestionIdx}`;
     let displayText = currentAnswerText || (draftAnswers[draftKey] || '');
@@ -962,9 +929,6 @@ document.body.addEventListener('click', function startMusicOnce() {
         if (remaining <= 0) {
             // Время вышло
             clearInterval(timerIntervalId);
-            if (!questionAnswered && !answered) {
-                // Если игрок не ответил — просто переходим к паузе
-            }
             if (currentUser?.isAdmin) {
                 startPauseBetweenQuestions(round.pauseDuration || 10);
             }
