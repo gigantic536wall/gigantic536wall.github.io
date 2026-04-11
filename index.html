@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Аниме викторина | 8 раундов + выбор раунда</title>
     <style>
-        /* ... весь ваш CSS остаётся без изменений ... */
+        /* ... ваш CSS полностью сохранён ... */
         * { box-sizing: border-box; }
         body {
             background: linear-gradient(135deg, #1a1a2e, #16213e);
@@ -161,7 +161,6 @@
     </div>
     <h1>🎌 Аниме викторина | 8 раундов × 10 вопросов</h1>
     
-    <!-- ... все остальные HTML‑блоки (loginScreen, gameScreen, adminPanel) без изменений ... -->
     <div id="loginScreen">
         <h2>Вход в игру</h2>
         <input type="text" id="nickname" class="nickname-input" placeholder="Твой никнейм" maxlength="20">
@@ -207,6 +206,10 @@
         <div id="answersReviewScreen" class="hidden">
             <div id="answersReviewContent"></div>
         </div>
+        <!-- Новый экран для показа ответов видео-раунда -->
+        <div id="videoAnswersReviewScreen" class="hidden">
+            <div id="videoAnswersReviewContent"></div>
+        </div>
         <div id="resultScreen" class="hidden">
             <h2>Игра окончена!</h2>
             <div id="finalResults"></div>
@@ -224,6 +227,7 @@
             <button id="startSelectedRoundBtn">🚀 СТАРТ ВЫБРАННОГО РАУНДА</button>
             <button id="nextRoundBtn" class="hidden">➡️ Следующий раунд</button>
             <button id="showAnswersBtn" class="hidden">📋 Показать ответы раунда (слайд-шоу)</button>
+            <button id="showVideoAnswersBtn" class="hidden">🎬 Показать ответы видео-раунда</button>
             <button id="clearPlayersBtn" class="clear-players-btn">🧹 Очистить всех игроков</button>
             <button id="resetGameBtn">🔄 Сбросить игру</button>
             <button id="globalPauseBtn" class="hidden">⏸️ Поставить на паузу</button>
@@ -242,20 +246,16 @@
     async function restDelete(p) { const r=await fetch(`${DB_URL}/${p}.json`,{method:'DELETE'}); if(!r.ok) throw new Error(`DELETE ${p} ${r.status}`); return r.json(); }
 
     // ========== АУДИО / ВИДЕО ГРОМКОСТЬ ==========
-    // Убрана фоновая музыка. Глобальная громкость для видео.
-    let globalVolume = 0.5; // значение по умолчанию
-
+    let globalVolume = 0.5;
     const muteIcon = document.getElementById('muteIcon');
     const volumeSlider = document.getElementById('volumeSlider');
     const testSoundBtn = document.getElementById('testSoundBtn');
 
-    // Функция установки громкости для всех существующих видео
     function setVideoVolume(vol) {
         const videos = document.querySelectorAll('video');
         videos.forEach(v => { v.volume = vol; });
     }
 
-    // Обновление иконки в зависимости от громкости
     function updateMuteIcon(vol) {
         if (vol === 0) muteIcon.textContent = '🔇';
         else if (vol < 0.3) muteIcon.textContent = '🔈';
@@ -263,7 +263,6 @@
         else muteIcon.textContent = '🔊';
     }
 
-    // Обработчик слайдера громкости
     volumeSlider.addEventListener('input', (e) => {
         const vol = parseFloat(e.target.value);
         globalVolume = vol;
@@ -271,7 +270,6 @@
         updateMuteIcon(vol);
     });
 
-    // Клик по иконке mute/unmute
     muteIcon.addEventListener('click', () => {
         let newVol = (globalVolume === 0) ? 0.5 : 0;
         globalVolume = newVol;
@@ -280,18 +278,14 @@
         updateMuteIcon(newVol);
     });
 
-    // Кнопка теста звука (воспроизводит короткий звук с текущей громкостью)
     testSoundBtn.addEventListener('click', () => {
         const testAudio = new Audio('music/тестауд.mp3');
         testAudio.volume = globalVolume;
         testAudio.play();
     });
 
-    // При создании нового видео будем применять глобальную громкость
     function applyVolumeToVideo(videoElement) {
-        if (videoElement) {
-            videoElement.volume = globalVolume;
-        }
+        if (videoElement) videoElement.volume = globalVolume;
     }
 
     // ==================== ДАННЫЕ ИГРЫ ====================
@@ -328,7 +322,7 @@
                 { video: "anime3vid/monolog9.mp4", correctAnswer: "Название аниме 9" },
                 { video: "anime3vid/patriotism10.mp4", correctAnswer: "Название аниме 10" }
             ],
-            pauseDuration: 10 // секунд между вопросами
+            pauseDuration: 10
         },
         ...Array.from({length:5},(_,i)=> ({ type:"quiz", name:`Раунд ${i+4}: ${["Персонажи","Сюжеты","Манга","Студии","Озвучка"][i]}`, questions: generateQuizQuestions(i+4) }))
     ];
@@ -342,7 +336,6 @@
         })); 
     }
 
-    // Заполняем выпадающий список раундов
     function populateRoundSelect() {
         const select = document.getElementById('roundSelect');
         if (!select) return;
@@ -366,7 +359,8 @@
     let reviewTimerInterval = null;
     let globalPauseActive = false;
     let globalPauseRemaining = 0;
-    let videoElement = null; // для видео-раунда
+    let videoElement = null;
+    let videoReviewTimer = null; // таймер для слайд-шоу ответов видео-раунда
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
     function showError(msg){ const d=document.getElementById('errorDisplay'); if(d){ d.innerText=msg; d.style.display='block'; setTimeout(()=>d.style.display='none',5000); } }
@@ -476,7 +470,7 @@
                         const ans = answers[qIdx];
                         if (ans && ans.answered) {
                             anyAnswer = true;
-                            const points = round.type === "image_sequence" ? [4,3,2,1][ans.step] : 2; // для видео фиксированные баллы
+                            const points = round.type === "image_sequence" ? [4,3,2,1][ans.step] : 2;
                             const questionIndex = parseInt(qIdx.replace(/\D/g, '')) || 0;
                             const questionObj = round.questions[questionIndex];
                             const correctAns = questionObj ? questionObj.correctAnswer : '—';
@@ -549,7 +543,6 @@
             currentQuestionObj = question;
             restoreImageState(question);
         } else if (round.type === "video") {
-            // подготовка видео-вопроса
             answered = false;
             questionAnswered = false;
             currentAnswerText = "";
@@ -823,7 +816,6 @@
         `;
         
         const video = document.getElementById('questionVideo');
-        // Применяем глобальную громкость к видео
         applyVolumeToVideo(video);
         
         const answerInput = document.getElementById('answerInput');
@@ -834,12 +826,10 @@
         
         videoElement = video;
         
-        // Состояние таймера
         let remaining = totalTime;
         let videoEnded = false;
         let timerIntervalId = null;
         
-        // Обработчик кнопки повтора видео
         replayBtn.addEventListener('click', () => {
             if (video.paused || video.ended) {
                 video.currentTime = 0;
@@ -849,13 +839,11 @@
             }
         });
         
-        // Если игрок уже ответил, отключаем элементы
         if (questionAnswered) {
             video.pause();
             replayBtn.disabled = true;
         }
         
-        // Обработчик ответа
         if (!questionAnswered) {
             answerInput.addEventListener('input', (e) => {
                 currentAnswerText = e.target.value;
@@ -903,7 +891,6 @@
             };
         }
         
-        // Таймер
         const tick = async () => {
             if (!gameActive || !roundInProgress) {
                 clearInterval(timerIntervalId);
@@ -916,7 +903,6 @@
                 return;
             }
             
-            // Логика таймера с учётом окончания видео
             if (!videoEnded && video.ended) {
                 videoEnded = true;
                 timeStatus.textContent = `${remaining} сек (видео закончилось, ещё есть время на ответ)`;
@@ -927,11 +913,7 @@
             timeStatus.textContent = `${remaining} сек${videoEnded ? ' (отсчёт после видео)' : ''}`;
             
             if (remaining <= 0) {
-                // Время вышло
                 clearInterval(timerIntervalId);
-                if (!questionAnswered && !answered) {
-                    // Если игрок не ответил — просто переходим к паузе
-                }
                 if (currentUser?.isAdmin) {
                     startPauseBetweenQuestions(round.pauseDuration || 10);
                 }
@@ -941,15 +923,11 @@
         };
         
         timerIntervalId = setTimeout(tick, 1000);
-        
-        // Обработчик окончания видео (для обновления интерфейса)
         video.addEventListener('ended', () => {
             videoEnded = true;
             timeStatus.textContent = `${remaining} сек (видео закончилось, ещё есть время на ответ)`;
-            // Если админ, можно ничего не делать, таймер сам дойдёт до 0
         });
         
-        // Сохраняем ID таймера для возможности очистки извне
         timerInterval = timerIntervalId;
     }
 
@@ -1037,7 +1015,11 @@
         showWaitingScreen();
         if(currentUser && currentUser.isAdmin) {
             document.getElementById('nextRoundBtn').classList.remove('hidden');
-            document.getElementById('showAnswersBtn').classList.remove('hidden');
+            if (currentRound === 0) {
+                document.getElementById('showAnswersBtn').classList.remove('hidden');
+            } else if (currentRound === 2) {
+                document.getElementById('showVideoAnswersBtn').classList.remove('hidden');
+            }
             await updateAdminAnswersPanel();
         }
         if(currentUser?.isAdmin) {
@@ -1083,6 +1065,7 @@
         });
         
         document.getElementById('showAnswersBtn')?.classList.add('hidden');
+        document.getElementById('showVideoAnswersBtn')?.classList.add('hidden');
         const players = await restGet('players') || {};
         for(let id in players) {
             if(!players[id].isAdmin) {
@@ -1101,7 +1084,7 @@
 
     async function startAnswersReview() {
         if (!currentUser?.isAdmin) return;
-        const round = roundsData[0]; // первый раунд (картинки)
+        const round = roundsData[0];
         if (!round || round.type !== "image_sequence") return;
         
         await restPut('gameState/answersReview', {
@@ -1155,11 +1138,164 @@
         }
     }
 
+    // ========== ПОКАЗ ОТВЕТОВ ДЛЯ ВИДЕО-РАУНДА ==========
+    async function startVideoAnswersReview() {
+        if (!currentUser?.isAdmin) return;
+        const round = roundsData[2]; // видео-раунд
+        if (!round || round.type !== "video") return;
+        
+        await restPut('gameState/videoAnswersReview', {
+            active: true,
+            roundIndex: 2,
+            currentSlide: 0,
+            totalSlides: round.questions.length,
+            showAnswer: false // сначала показываем видео
+        });
+        showVideoAnswerSlide(0);
+    }
+
+    function showVideoAnswerSlide(slideIndex) {
+        if (videoReviewTimer) clearTimeout(videoReviewTimer);
+        const round = roundsData[2];
+        const question = round.questions[slideIndex];
+        const container = document.getElementById('videoAnswersReviewContent');
+        if (!container) return;
+        
+        const isAnswerPhase = false; // всегда начинаем с показа видео
+        container.innerHTML = `
+            <h2>${round.name} — Правильный ответ ${slideIndex+1}/${round.questions.length}</h2>
+            <div id="videoReviewContainer" style="margin: 20px auto; max-width: 600px;">
+                <video id="reviewVideo" class="video-player" autoplay controls style="width: 100%;">
+                    <source src="${question.video}" type="video/mp4">
+                    Ваш браузер не поддерживает видео.
+                </video>
+            </div>
+            <div id="answerReviewContainer" class="correct-answer-big hidden">${question.correctAnswer}</div>
+            <div class="timer" id="videoReviewTimer">15</div>
+        `;
+        container.setAttribute('data-slide', slideIndex);
+        container.setAttribute('data-phase', 'video');
+        
+        const video = document.getElementById('reviewVideo');
+        applyVolumeToVideo(video);
+        
+        let timeLeft = 15; // 15 секунд на просмотр
+        const timerDiv = document.getElementById('videoReviewTimer');
+        const answerDiv = document.getElementById('answerReviewContainer');
+        
+        // Функция перехода к показу ответа
+        const showAnswerPhase = () => {
+            container.setAttribute('data-phase', 'answer');
+            answerDiv.classList.remove('hidden');
+            timerDiv.innerText = '5'; // показываем ответ ещё 5 секунд
+            let answerTime = 5;
+            videoReviewTimer = setInterval(async () => {
+                answerTime--;
+                timerDiv.innerText = answerTime;
+                if (answerTime <= 0) {
+                    clearInterval(videoReviewTimer);
+                    const nextIndex = slideIndex + 1;
+                    if (currentUser?.isAdmin) {
+                        if (nextIndex < round.questions.length) {
+                            await restPatch('gameState/videoAnswersReview', { currentSlide: nextIndex, showAnswer: false });
+                            showVideoAnswerSlide(nextIndex);
+                        } else {
+                            await restDelete('gameState/videoAnswersReview');
+                            document.getElementById('videoAnswersReviewScreen').classList.add('hidden');
+                            showWaitingScreen();
+                        }
+                    }
+                }
+            }, 1000);
+        };
+        
+        // Таймер для фазы видео
+        videoReviewTimer = setInterval(async () => {
+            timeLeft--;
+            timerDiv.innerText = timeLeft;
+            
+            if (timeLeft <= 0) {
+                clearInterval(videoReviewTimer);
+                if (currentUser?.isAdmin) {
+                    await restPatch('gameState/videoAnswersReview', { showAnswer: true });
+                }
+                showAnswerPhase();
+            }
+        }, 1000);
+        
+        // Если админ может пропустить видео по клику на таймер (опционально)
+        if (currentUser?.isAdmin) {
+            timerDiv.style.cursor = 'pointer';
+            timerDiv.title = 'Нажмите, чтобы пропустить видео';
+            timerDiv.addEventListener('click', async () => {
+                clearInterval(videoReviewTimer);
+                await restPatch('gameState/videoAnswersReview', { showAnswer: true });
+                showAnswerPhase();
+            }, { once: true });
+        }
+    }
+
+    // Обработчик синхронизации для игроков
+    function updateVideoAnswersReviewForPlayer(reviewState) {
+        const container = document.getElementById('videoAnswersReviewContent');
+        const round = roundsData[reviewState.roundIndex];
+        const question = round.questions[reviewState.currentSlide];
+        
+        let phase = reviewState.showAnswer ? 'answer' : 'video';
+        const currentPhase = container.getAttribute('data-phase');
+        const currentSlide = container.getAttribute('data-slide');
+        
+        if (currentSlide != reviewState.currentSlide) {
+            // Новый слайд
+            container.innerHTML = `
+                <h2>${round.name} — Правильный ответ ${reviewState.currentSlide+1}/${reviewState.totalSlides}</h2>
+                <div id="videoReviewContainer" style="margin: 20px auto; max-width: 600px;">
+                    <video id="reviewVideo" class="video-player" autoplay controls style="width: 100%;">
+                        <source src="${question.video}" type="video/mp4">
+                    </video>
+                </div>
+                <div id="answerReviewContainer" class="correct-answer-big ${phase === 'answer' ? '' : 'hidden'}">${question.correctAnswer}</div>
+                <div class="timer" id="videoReviewTimer">${phase === 'video' ? '15' : '5'}</div>
+            `;
+            const video = document.getElementById('reviewVideo');
+            applyVolumeToVideo(video);
+            container.setAttribute('data-slide', reviewState.currentSlide);
+            container.setAttribute('data-phase', phase);
+            
+            if (phase === 'answer') {
+                // Если сразу ответ, запускаем обратный отсчёт 5 сек
+                let timeLeft = 5;
+                const timerDiv = document.getElementById('videoReviewTimer');
+                const interval = setInterval(() => {
+                    timeLeft--;
+                    timerDiv.innerText = timeLeft;
+                    if (timeLeft <= 0) clearInterval(interval);
+                }, 1000);
+            }
+        } else if (currentPhase !== phase) {
+            // Переключение фазы на том же слайде
+            const answerDiv = document.getElementById('answerReviewContainer');
+            const timerDiv = document.getElementById('videoReviewTimer');
+            if (phase === 'answer') {
+                answerDiv.classList.remove('hidden');
+                timerDiv.innerText = '5';
+                let timeLeft = 5;
+                const interval = setInterval(() => {
+                    timeLeft--;
+                    timerDiv.innerText = timeLeft;
+                    if (timeLeft <= 0) clearInterval(interval);
+                }, 1000);
+            }
+            container.setAttribute('data-phase', phase);
+        }
+    }
+
     async function showFinalResults() {
         document.getElementById('waitingScreen').classList.add('hidden');
         document.getElementById('quizScreen').classList.add('hidden');
         document.getElementById('pauseScreen').classList.add('hidden');
         document.getElementById('answersReviewScreen').classList.add('hidden');
+        document.getElementById('videoAnswersReviewScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.remove('hidden');
         const players = await restGet('players') || {};
         let teamsScores = [0,0,0,0];
@@ -1179,6 +1315,7 @@
         document.getElementById('quizScreen').classList.add('hidden');
         document.getElementById('pauseScreen').classList.add('hidden');
         document.getElementById('answersReviewScreen').classList.add('hidden');
+        document.getElementById('videoAnswersReviewScreen').classList.add('hidden');
         document.getElementById('resultScreen').classList.add('hidden');
         if(currentUser && !currentUser.isAdmin) {
             const changeBlock = document.getElementById('changeTeamBlock');
@@ -1200,12 +1337,35 @@
                 const state = await restGet('gameState');
                 const pauseState = await restGet('gameState/pause');
                 const reviewState = await restGet('gameState/answersReview');
+                const videoReviewState = await restGet('gameState/videoAnswersReview');
+
+                if (videoReviewState && videoReviewState.active) {
+                    document.getElementById('waitingScreen')?.classList.add('hidden');
+                    document.getElementById('quizScreen')?.classList.add('hidden');
+                    document.getElementById('pauseScreen')?.classList.add('hidden');
+                    document.getElementById('answersReviewScreen')?.classList.add('hidden');
+                    document.getElementById('videoAnswersReviewScreen')?.classList.remove('hidden');
+                    
+                    if (!currentUser?.isAdmin) {
+                        updateVideoAnswersReviewForPlayer(videoReviewState);
+                    } else {
+                        const lastSlide = document.getElementById('videoAnswersReviewContent')?.getAttribute('data-slide');
+                        const lastPhase = document.getElementById('videoAnswersReviewContent')?.getAttribute('data-phase');
+                        if (lastSlide != videoReviewState.currentSlide || (videoReviewState.showAnswer && lastPhase === 'video')) {
+                            showVideoAnswerSlide(videoReviewState.currentSlide);
+                        }
+                    }
+                    return;
+                } else {
+                    document.getElementById('videoAnswersReviewScreen')?.classList.add('hidden');
+                }
 
                 if (reviewState && reviewState.active) {
                     document.getElementById('waitingScreen')?.classList.add('hidden');
                     document.getElementById('quizScreen')?.classList.add('hidden');
                     document.getElementById('pauseScreen')?.classList.add('hidden');
                     document.getElementById('answersReviewScreen')?.classList.remove('hidden');
+                    document.getElementById('videoAnswersReviewScreen')?.classList.add('hidden');
                     
                     if (!currentUser?.isAdmin) {
                         const round = roundsData[reviewState.roundIndex];
@@ -1268,7 +1428,6 @@
                     showWaitingScreen();
                     if (currentUser?.isAdmin) await updateAdminAnswersPanel();
                 } else if (state && state.active && gameActive && roundInProgress && !pauseActive) {
-                    // Синхронизация для image_sequence
                     if (roundsData[currentRound]?.type === "image_sequence") {
                         if (!currentUser?.isAdmin && state.currentRound === currentRound && state.currentQuestion === currentQuestionIdx) {
                             if (state.imageStep !== imageStep) {
@@ -1530,6 +1689,7 @@
         });
         
         document.getElementById('showAnswersBtn')?.addEventListener('click', startAnswersReview);
+        document.getElementById('showVideoAnswersBtn')?.addEventListener('click', startVideoAnswersReview);
         document.getElementById('clearPlayersBtn')?.addEventListener('click', clearAllPlayers);
         document.getElementById('resetGameBtn')?.addEventListener('click', resetGame);
         
