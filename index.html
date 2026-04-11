@@ -150,6 +150,11 @@
             display: block;
             background: black;
         }
+        .video-loading-hint {
+            font-style: italic;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -220,10 +225,11 @@
             <select id="roundSelect"></select>
             <button id="startSelectedRoundBtn">🚀 СТАРТ ВЫБРАННОГО РАУНДА</button>
             
-            <div style="margin-top: 20px; padding: 10px; border: 1px solid #ff4757; border-radius: 15px;">
-                <label for="reviewRoundSelect">Показать ответы раунда:</label>
+            <div style="margin-top: 20px; padding: 15px; border: 2px solid #ff4757; border-radius: 15px; background: rgba(0,0,0,0.3);">
+                <h3>📋 Показ ответов</h3>
+                <label for="reviewRoundSelect">Выберите раунд для разбора:</label>
                 <select id="reviewRoundSelect"></select>
-                <button id="showAnswersBtn">📋 ПОКАЗАТЬ ОТВЕТЫ (Слайд-шоу)</button>
+                <button id="showAnswersBtn" style="background: #2ecc71;">🎬 НАЧАТЬ ПОКАЗ ОТВЕТОВ</button>
             </div>
 
             <button id="nextRoundBtn" class="hidden">➡️ Следующий раунд</button>
@@ -296,7 +302,7 @@
             name: "Раунд 1: Угадай аниме по картинке", 
             questions: [
                 { images: ["images/image1.png", "images/image2.png", "images/image3.png", "images/image4.png"], correctAnswer: "Реинкарнация безработного" },
-                { images: ["images/image1маг.png", "images/image2маг.png", "images/image3маг.png", "images/image4маг.png"], correctAnswer: "Магическая битва" },
+                { images: ["images/image1маг.png", "images/image2маг.png", "images/image3маг.png", "images/image4маг.png"], correctAnswer: "Магическая битва " },
                 { images: ["images/image1невест.png", "images/image2невест.png", "images/image3невест.png", "images/image4невест.png"], correctAnswer: "Пять невест" },
                 { images: ["images/images1джо.jpg", "images/images2джо.jpg", "images/images3джо.jpg", "images/images4джо.jpg"], correctAnswer: "ДжоДжо" },
                 { images: ["images/image1angel.png", "images/image2angel.png", "images/image3angel.png", "images/image4angel.png"], correctAnswer: "Ангел по соседству меня балует" },
@@ -344,15 +350,15 @@
         select.innerHTML = '';
         reviewSelect.innerHTML = '';
         roundsData.forEach((round, idx) => {
-            const opt1 = document.createElement('option');
-            opt1.value = idx;
-            opt1.textContent = `${idx+1}. ${round.name}`;
-            select.appendChild(opt1);
+            const opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = `${idx+1}. ${round.name}`;
+            select.appendChild(opt);
 
-            const opt2 = document.createElement('option');
-            opt2.value = idx;
-            opt2.textContent = `${idx+1}. ${round.name}`;
-            reviewSelect.appendChild(opt2);
+            const optReview = document.createElement('option');
+            optReview.value = idx;
+            optReview.textContent = `${idx+1}. ${round.name}`;
+            reviewSelect.appendChild(optReview);
         });
     }
 
@@ -805,7 +811,7 @@
             <div class="image-round-container">
                 <h2>${round.name} | Вопрос ${currentQuestionIdx+1} из ${round.questions.length}</h2>
                 <div class="timer" id="timer">${totalTime}</div>
-                <video id="questionVideo" class="video-player" autoplay controlsList="nodownload" oncontextmenu="return false;">
+                <video id="questionVideo" class="video-player" autoplay preload="auto" playsinline>
                     <source src="${question.video}" type="video/mp4">
                 </video>
                 <div style="margin: 10px;">
@@ -1089,7 +1095,8 @@
         } 
         else if (round.type === "video") {
             contentHtml += `
-                <video id="reviewVideo" class="video-player" autoplay>
+                <div class="video-loading-hint">Загрузка видео-ответа...</div>
+                <video id="reviewVideo" class="video-player" autoplay preload="auto" playsinline muted>
                     <source src="${question.video}" type="video/mp4">
                 </video>
                 <div class="correct-answer-big">${question.correctAnswer}</div>
@@ -1097,7 +1104,6 @@
             `;
         }
         else {
-            // Обычный тест
             contentHtml += `
                 <div class="question-block">
                     <p style="font-size: 24px;">${question.text}</p>
@@ -1111,25 +1117,30 @@
         container.setAttribute('data-slide', slideIndex);
         container.setAttribute('data-round', roundIdx);
 
-        // Применяем громкость к видео если оно есть
+        // Применяем громкость к видео (хотя оно muted для автоплея, пользователь может его слышать если мы снимем muted)
         const v = document.getElementById('reviewVideo');
-        if(v) applyVolumeToVideo(v);
+        if(v) {
+            applyVolumeToVideo(v);
+            v.muted = false; // пробуем включить звук, если громкость > 0
+            v.onwaiting = () => { document.querySelector('.video-loading-hint').style.display = 'block'; };
+            v.onplaying = () => { document.querySelector('.video-loading-hint').style.display = 'none'; };
+        }
         
-        // Логика переключения (только для админа)
-        if (currentUser?.isAdmin) {
-            let timeLeft = (round.type === "video") ? 15 : (round.type === "image_sequence" ? 10 : 8);
-            const timerDiv = document.getElementById('reviewTimer');
+        // Таймер запускается У ВСЕХ
+        let timeLeft = (round.type === "video") ? 15 : (round.type === "image_sequence" ? 10 : 8);
+        const timerDiv = document.getElementById('reviewTimer');
+        
+        reviewTimerInterval = setInterval(async () => {
+            timeLeft--;
+            if (timerDiv) timerDiv.innerText = timeLeft;
             
-            reviewTimerInterval = setInterval(async () => {
-                timeLeft--;
-                if (timerDiv) timerDiv.innerText = timeLeft;
-                
-                // Если видео закончилось раньше времени или время вышло
-                const vid = document.getElementById('reviewVideo');
-                const isVideoEnded = vid ? vid.ended : false;
+            // Проверка окончания (только админ управляет переключением в БД)
+            const vid = document.getElementById('reviewVideo');
+            const isVideoEnded = vid ? vid.ended : false;
 
-                if (timeLeft <= 0 || isVideoEnded) {
-                    clearInterval(reviewTimerInterval);
+            if (timeLeft <= 0 || isVideoEnded) {
+                clearInterval(reviewTimerInterval);
+                if (currentUser?.isAdmin) {
                     const nextIndex = slideIndex + 1;
                     if (nextIndex < round.questions.length) {
                         await restPatch('gameState/answersReview', { currentSlide: nextIndex });
@@ -1140,8 +1151,8 @@
                         showWaitingScreen();
                     }
                 }
-            }, 1000);
-        }
+            }
+        }, 1000);
     }
 
     async function showFinalResults() {
@@ -1200,6 +1211,7 @@
                     const lastSlide = container?.getAttribute('data-slide');
                     const lastRound = container?.getAttribute('data-round');
 
+                    // Если в БД сменился слайд или раунд - обновляем интерфейс
                     if (lastSlide != reviewState.currentSlide || lastRound != reviewState.roundIndex) {
                         showAnswerSlide(reviewState.currentSlide, reviewState.roundIndex);
                     }
